@@ -23,31 +23,28 @@ public static partial class JavaUtil {
             RedirectStandardOutput = true
         });
 
-        string text = process.StandardError.ReadToEnd()?.ToLower();
+        string text = process.StandardError.ReadToEnd();
         if (string.IsNullOrEmpty(text))
-            throw new ArgumentNullException();
+            ArgumentException.ThrowIfNullOrWhiteSpace(text);
 
-        bool is64bit = text.Contains("64-bit");
-        string javaVersion = JavaVersionRegex()
-            .Match(text).Groups[1].Value
-            .Split('_')?.FirstOrDefault();
+        bool is64bit = text.Contains("64-bit", StringComparison.OrdinalIgnoreCase);
+        string javaVersion = JavaVersionRegex().Match(text).Groups["version"].Value;
 
-        string javaType = text.Contains("java(tm)")
+        string javaType = text.Contains("java(tm)", StringComparison.OrdinalIgnoreCase)
             ? "Java"
             : text.Contains("zulu")
                 ? "ZuluJDK"
                 : "OpenJDK";
 
         await process.WaitForExitAsync(cancellationToken);
-        var _ = int.TryParse(javaVersion, out var version);
 
+        var versionParts = javaVersion.Split(".");
         return new JavaEntry {
             Is64bit = is64bit,
             JavaPath = javaPath,
             JavaType = javaType,
-            JavaVersion = version is 0 && !string.IsNullOrWhiteSpace(javaVersion) 
-                ? new(javaVersion) 
-                : new(version, 0),
+            JavaVersion = javaVersion,
+            MajorVersion = (int.Parse(versionParts[0]) == 1) ? int.Parse(versionParts[1]) : int.Parse(versionParts[0]),
         };
     }
 
@@ -94,7 +91,7 @@ public static partial class JavaUtil {
 
     #region Privates
 
-    [GeneratedRegex(@"version\s+""([\d]+)""")]
+    [GeneratedRegex("(java|openjdk) version \"\\s*(?<version>\\S+)\\s*\"")]
     private static partial Regex JavaVersionRegex();
 
     [SupportedOSPlatform("Windows")]

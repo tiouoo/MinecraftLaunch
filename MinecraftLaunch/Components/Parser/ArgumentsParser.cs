@@ -87,7 +87,7 @@ public sealed class ArgumentsParser {
             ?? throw new JsonException("Failed to parse version.json");
 
         var vmParameters = JvmArgumentParser.Parse(entity);
-        var gameParameters = GameArgumentParser.Parse(entity, LaunchConfig.Server, 25565);
+        var gameParameters = GameArgumentParser.Parse(entity);
 
         if (MinecraftEntry is ModifiedMinecraftEntry { HasInheritance: true } inst) {
             var inheritedVersionEntry = JsonNode.Parse(File.ReadAllText(inst.InheritedMinecraft.ClientJsonPath))
@@ -97,8 +97,6 @@ public sealed class ArgumentsParser {
             vmParameters = JvmArgumentParser
                 .Parse(inheritedVersionEntry)
                 .Union(vmParameters);
-
-            gameParameters = GameArgumentParser.Parse(entity, LaunchConfig.Server, 25565);
         }
 
         var classPath = string.Join(Path.PathSeparator, _libraries.Select(lib => lib.FullPath));
@@ -178,6 +176,12 @@ public sealed class ArgumentsParser {
             yield return $"--width {LaunchConfig.Width}";
             yield return $"--height {LaunchConfig.Height}";
         }
+
+        if (LaunchConfig.ServerInfo is not null) {
+            yield return $"--server {LaunchConfig.ServerInfo.Address}";
+            yield return $"--port {LaunchConfig.ServerInfo.Port}";
+        }
+
         //foreach (var arg in _extraGameArguments) yield return arg;
     }
 }
@@ -190,7 +194,7 @@ internal sealed class GameArgumentParser {
     /// 解析参数
     /// </summary>
     /// <returns></returns>
-    public static IEnumerable<string> Parse(MinecraftJsonEntry gameJsonEntry, string server = null, int port = 25565)
+    public static IEnumerable<string> Parse(MinecraftJsonEntry gameJsonEntry)
     {
         if (!string.IsNullOrEmpty(gameJsonEntry.MinecraftArguments))
         {
@@ -213,13 +217,6 @@ internal sealed class GameArgumentParser {
         foreach (var item in game.ToImmutableArray())
         {
             yield return item;
-        }
-
-        if (!string.IsNullOrEmpty(server))
-        {
-            yield return $"--server {server}";
-            yield return $"--port {port}";
-            yield return $"--quickPlayMultiplayer {server}";
         }
     }
 }

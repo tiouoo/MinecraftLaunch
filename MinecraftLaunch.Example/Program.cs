@@ -192,7 +192,7 @@ Console.WriteLine(minecraft.Id);*/
 #region 本地游戏读取
 
 //C:\Users\wxysd\Desktop\总整包\MC\mc启动器\LauncherX\.minecraft - C:\Users\wxysd\Desktop\temp\.minecraft
-MinecraftParser minecraftParser = @".minecraft";
+MinecraftParser minecraftParser = @"D:\GamePackage\.minecraft";
 
 //minecraftParser.GetMinecrafts().ForEach(x => {
 //    Console.WriteLine(x.Id);
@@ -228,34 +228,32 @@ MinecraftParser minecraftParser = @".minecraft";
 
 #region 启动
 
-MinecraftRunner runner = new(new LaunchConfig {
-    Account = new OfflineAuthenticator().Authenticate("Yang114"),
-    JavaPath = new JavaEntry
-    {
-        Is64bit = true,
-        JavaPath = "C:\\Program Files\\Java\\jdk-19\\bin\\javaw.exe",
-        JavaVersion = new Version(19,2),
-    },
-    MaxMemorySize = 2048,
-    MinMemorySize = 512,
-    LauncherName = "MinecraftLaunch",
-    Server = "mc.hypixel.net"
-}, minecraftParser);
+//var minecraft = minecraftParser.GetMinecraft("1.14.4");
+//MinecraftRunner runner = new(new LaunchConfig {
+//    Account = new OfflineAuthenticator().Authenticate("Yang114"),
+//    MaxMemorySize = 2048,
+//    MinMemorySize = 512,
+//    LauncherName = "MinecraftLaunch",
+//    JavaPath = minecraft.GetAppropriateJava(javas),
+//    ServerInfo = new ServerInfo {
+//        Address = "mc.hypixel.net"
+//    }
+//}, minecraftParser);
 
-var process = await runner.RunAsync(minecraftParser.GetMinecraft("1.20.1"));
-process.Started += (_, _) => Console.WriteLine("Launch successful!");
-process.OutputLogReceived += (_, arg) => Console.WriteLine(arg.Data);
-process.Exited += (_, _) => File.WriteAllText("a.bat", process.Process.StartInfo.Arguments);
+//var process = await runner.RunAsync(minecraft);
+
+//process.Started += (_, _) => Console.WriteLine("Launch successful!");
+//process.OutputLogReceived += (_, arg) => Console.WriteLine(arg.Data);
 
 #endregion
 
 #region 错误分析
 
-LogAnalyzer analyzer = new(minecraftParser.GetMinecraft("1.20.1"));
-var result = analyzer.Analyze();
-foreach (var item in result.CrashReasons) {
-    Console.WriteLine(item);
-}
+//LogAnalyzer analyzer = new(minecraftParser.GetMinecraft("1.20.1"));
+//var result = analyzer.Analyze();
+//foreach (var item in result.CrashReasons) {
+//    Console.WriteLine(item);
+//}
 
 #endregion
 
