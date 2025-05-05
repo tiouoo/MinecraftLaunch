@@ -2,6 +2,7 @@
 using Flurl.Http.Configuration;
 using MinecraftLaunch;
 using MinecraftLaunch.Base.Enums;
+using MinecraftLaunch.Base.Interfaces;
 using MinecraftLaunch.Base.Models.Game;
 using MinecraftLaunch.Components.Authenticator;
 using MinecraftLaunch.Components.Downloader;
@@ -253,6 +254,15 @@ process.OutputLogReceived += (_, arg) => Console.WriteLine(arg.Data);
 //    Console.WriteLine(item);
 //}
 
+#endregion
+
+#region Java 安装器
+// var javaInstaller = JavaInstaller.Create("./Java", "17", "./Minecraft");
+// await javaInstaller.InstallAsync();
+
+// var javaInstaller = JavaInstaller.Create("./Java", "17", "./Minecraft");
+// javaInstaller.ProgressChanged += (_, arg) =>
+//    Console.WriteLine($"{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{FileDownloader.GetSpeedText(arg.Speed)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
 #endregion
 
 Console.WriteLine("Done!");
