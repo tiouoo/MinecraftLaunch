@@ -19,22 +19,22 @@ public sealed class NbtParser : INbtParser {
         _entry = minecraftEntry;
     }
 
-    public NbtReader GetReader() {
+    public NbtReader GetReader(NbtCompression compression = NbtCompression.None) {
         if (string.IsNullOrEmpty(_nbtFilePath)) {
             throw new ArgumentNullException(nameof(_nbtFilePath));
         }
 
-        using var fileStream = new FileStream(_nbtFilePath, FileMode.Open, FileAccess.Read);
-        return new NbtReader(fileStream, NbtCompression.GZip, true);
+        var fileStream = new FileStream(_nbtFilePath, FileMode.Open, FileAccess.Read);
+        return new NbtReader(fileStream, compression, true);
     }
 
-    public NbtWriter GetWriter() {
+    public NbtWriter GetWriter(NbtCompression compression = NbtCompression.None) {
         if (string.IsNullOrEmpty(_nbtFilePath)) {
             throw new ArgumentNullException(nameof(_nbtFilePath));
         }
 
         var fileStream = new FileStream(_nbtFilePath, FileMode.Open, FileAccess.Write);
-        return new NbtWriter(fileStream, NbtCompression.GZip, false);
+        return new NbtWriter(fileStream, compression, false);
     }
 
     public async Task<SaveEntry> ParseSaveAsync(string saveName, bool @bool = true, CancellationToken cancellationToken = default) {

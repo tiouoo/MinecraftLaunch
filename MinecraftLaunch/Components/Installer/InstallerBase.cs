@@ -17,14 +17,14 @@ public abstract class InstallerBase : IInstaller {
         Completed?.Invoke(this, EventArgs.Empty);
     }
 
-    internal virtual void ReportProgress(InstallStep step, double progress, TaskStatus status, int totalCount, int finshedCount, double speed = -1d, bool isSupportStep = false) {
+    internal virtual void ReportProgress(InstallStep step, double progress, TaskStatus status, int totalCount, int finshedCount, double speed = -1d, bool isSupportSpeed = false) {
         ProgressChanged?.Invoke(this, new InstallProgressChangedEventArgs {
             Speed = speed,
             Status = status,
             StepName = step,
             Progress = progress,
             TotalStepTaskCount = totalCount,
-            IsStepSupportSpeed = isSupportStep,
+            IsStepSupportSpeed = isSupportSpeed,
             FinishedStepTaskCount = finshedCount
         });
     }

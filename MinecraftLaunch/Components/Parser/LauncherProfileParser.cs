@@ -108,7 +108,7 @@ public sealed class LauncherProfileParser {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
             Converters = {
                 new DateTimeJsonConverter()
-            }, 
+            },
         };
         
         return options;
