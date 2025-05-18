@@ -14,6 +14,7 @@ using MinecraftLaunch.Components.Provider;
 using MinecraftLaunch.Extensions;
 using MinecraftLaunch.Launch;
 using MinecraftLaunch.Utilities;
+using NbtToolkit;
 using System.Net;
 
 DownloadMirrorManager.MaxThread = 256;
@@ -23,16 +24,17 @@ CurseforgeProvider.CurseforgeApiKey = "Your Api Key";
 HttpUtil.Initialize();
 
 #region 原版安装器
-/*
-var entry = await VanillaInstaller.EnumerableMinecraftAsync()
-    .FirstAsync(x => x.Id == "1.20.1");
 
-var installer = VanillaInstaller.Create(".minecraft", entry);
-installer.ProgressChanged += (_, arg) =>
-    Console.WriteLine($"{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{FileDownloader.GetSpeedText(arg.Speed)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
 
-var minecraft = await installer.InstallAsync();
-Console.WriteLine(minecraft.Id);*/
+//var entry = await VanillaInstaller.EnumerableMinecraftAsync()
+//    .FirstAsync(x => x.Id == "1.20.1");
+
+//var installer = VanillaInstaller.Create("C:\\Users\\wxysd\\Desktop\\总整包\\MC\\mc启动器\\LauncherX\\.minecraft", entry);
+//installer.ProgressChanged += (_, arg) =>
+//    Console.WriteLine($"{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{FileDownloader.GetSpeedText(arg.Speed)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
+
+//var minecraft = await installer.InstallAsync();
+//Console.WriteLine(minecraft.Id);
 
 #endregion
 
@@ -224,6 +226,15 @@ var asyncJavas = JavaUtil.EnumerableJavaAsync();
 //Console.WriteLine($"种子：{save.Seed}");
 //Console.WriteLine($"游戏模式：{save.GameType}");
 //Console.WriteLine($"版本：{save.Version}");
+
+//var rootTag = @"C:\Users\wxysd\AppData\Roaming\ModrinthApp\profiles\Fabulously Optimized\servers.dat".GetNBTParser()
+//    .GetReader()
+//    .ReadRootTag();
+
+//var entries = rootTag["servers"].AsTagList<TagCompound>().FirstOrDefault();
+
+//Console.WriteLine(entries["ip"].AsString());
+//Console.WriteLine(entries["name"].AsString());
 
 #endregion
 

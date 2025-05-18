@@ -11,7 +11,7 @@ public record LaunchConfig {
 
     public int Width { get; set; } = 854;
     public int Height { get; set; } = 480;
-    public int MinMemorySize { get; set; }
+    public int MinMemorySize { get; set; } = 512;
     public int MaxMemorySize { get; set; } = 1024;
 
     public JavaEntry JavaPath { get; set; }

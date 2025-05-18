@@ -33,7 +33,7 @@ public sealed class FabricInstaller : InstallerBase {
 
         var entries = json.Deserialize(FabricInstallEntryContext.Default.IEnumerableFabricInstallEntry)
             .OrderByDescending(x => new Version(x.Loader.Version.Replace(x.Loader.Separator, ".")));
-
+        
         foreach (var entry in entries) {
             cancellationToken.ThrowIfCancellationRequested();
             yield return entry;
@@ -42,7 +42,6 @@ public sealed class FabricInstaller : InstallerBase {
 
     public override async Task<MinecraftEntry> InstallAsync(CancellationToken cancellationToken = default) {
         ModifiedMinecraftEntry entry = default;
-
         ReportProgress(InstallStep.Started, 0.0d, TaskStatus.WaitingToRun, 1, 1);
 
         try {
