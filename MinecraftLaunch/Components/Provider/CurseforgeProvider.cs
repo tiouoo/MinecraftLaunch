@@ -1,15 +1,21 @@
-﻿using Flurl.Http;
+﻿using Flurl;
+using Flurl.Http;
+using MinecraftLaunch.Base.Enums;
+using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Extensions;
 using MinecraftLaunch.Utilities;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization.Metadata;
+using System.Text.Json.Serialization;
+using System.Web;
 
 namespace MinecraftLaunch.Components.Provider;
 
 public sealed class CurseforgeProvider {
     public static string CurseforgeApiKey = string.Empty;
-    public static string CurseforgeApi = "https://api.curseforge.com/v1";
+    public readonly static string CurseforgeApi = "https://api.curseforge.com/v1";
 
     public CurseforgeProvider(string apiKey) {
         CurseforgeApiKey = apiKey;
@@ -20,26 +26,60 @@ public sealed class CurseforgeProvider {
     }
 
     public async IAsyncEnumerable<CurseforgeResource> GetFeaturedResourcesAsync([EnumeratorCancellation] CancellationToken cancellationToken = default) {
-        IEnumerable<JsonNode> resources = null;
-        var request = CreateRequest("featured");
+        var request = CreateRequest("mods", "featured");
+        var payload = new CurseforgeFeaturedRequestPayload(432, [0])
+            .Serialize(CurseforgeFeaturedRequestPayloadContext.Default.CurseforgeFeaturedRequestPayload);
 
-        using var responseMessage = await request.PostJsonAsync(new CurseforgeFeaturedRequestPayload(432,
-            [0]), cancellationToken: cancellationToken);
+        using var responseMessage = await request.PostAsync(new StringContent(payload,
+            new MediaTypeHeaderValue("application/json")),
+                cancellationToken: cancellationToken);
 
-        var jsonNode = (await responseMessage.GetStringAsync()).AsNode()
+        var jsonNode = (await responseMessage.GetStringAsync())
+            .AsNode()
             .Select("data");
 
         var popular = jsonNode.GetEnumerable("popular");
         var featured = jsonNode.GetEnumerable("featured");
 
+        IEnumerable<JsonNode> resources;
         if (popular is not null && featured is not null)
             resources = popular.Union(featured);
         else
             yield break;
 
-        foreach (var resource in resources) {
+        foreach (var resource in resources)
             yield return Parse(resource);
-        }
+    }
+
+    public async IAsyncEnumerable<CurseforgeResource> SearchResourcesAsync(
+        string searchFilter,
+        int classId = 6,
+        int category = 0,
+        string gameVersion = null,
+        ModLoaderType modLoaderType = ModLoaderType.Any) {
+        var url = new Url(CurseforgeApi)
+            .AppendPathSegment("mods/search")
+            .SetQueryParams(new {
+                gameId = 432,
+                sortField = "Featured",
+                sortOrder = "desc",
+                categoryId = category,
+                classId,
+                gameVersion,
+                searchFilter = HttpUtility.UrlEncode(searchFilter)
+            });
+
+        if (modLoaderType is not ModLoaderType.Any or ModLoaderType.Unknown)
+            url.SetQueryParam("modLoaderType", (int)modLoaderType);
+
+        var json = await CreateRequest(url).GetStringAsync();
+        var jsonNode = json.AsNode();
+
+        if (jsonNode == null)
+            yield break;
+
+        foreach (var resourceNode in jsonNode.GetEnumerable("data"))
+            yield return Parse(resourceNode);
     }
 
     #region Private and internals
@@ -117,6 +157,13 @@ public sealed class CurseforgeProvider {
         };
     }
 
+    private static IFlurlRequest CreateRequest(Url url) {
+        CheckApiKey();
+
+        return HttpUtil.Request(url)
+            .WithHeader("x-api-key", CurseforgeApiKey);
+    }
+
     private static IFlurlRequest CreateRequest(params string[] path) {
         CheckApiKey();
 
@@ -143,16 +190,5 @@ public class InvalidModpackFileException : Exception {
 
 internal record CurseforgeFeaturedRequestPayload(int gameId, int[] excludedModIds, string gameVersionTypeId = null);
 
-public record CurseforgeResource {
-    public required int Id { get; init; }
-    public required int ClassId { get; init; }
-    public required int DownloadCount { get; init; }
-    public required string Name { get; init; }
-    public required string IconUrl { get; init; }
-    public required string Summary { get; init; }
-    public required string WebsiteUrl { get; init; }
-    public required DateTime DateModified { get; init; }
-    public required IEnumerable<string> Authors { get; init; }
-    public required IEnumerable<string> Categories { get; init; }
-    public required IEnumerable<string> Screenshots { get; init; }
-}
+[JsonSerializable(typeof(CurseforgeFeaturedRequestPayload))]
+internal sealed partial class CurseforgeFeaturedRequestPayloadContext : JsonSerializerContext;

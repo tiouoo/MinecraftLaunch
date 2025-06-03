@@ -19,7 +19,6 @@ using System.Net;
 
 DownloadMirrorManager.MaxThread = 256;
 DownloadMirrorManager.IsEnableMirror = false;
-CurseforgeProvider.CurseforgeApiKey = "Your Api Key";
 
 HttpUtil.Initialize();
 
@@ -94,6 +93,11 @@ HttpUtil.Initialize();
 
 #endregion
 
+#region Java 安装器
+//var javaInstaller = JavaInstaller.Create("./Java");
+//await javaInstaller.InstallAsync();
+#endregion
+
 #region 复合安装器
 
 //var mc = await VanillaInstaller.EnumerableMinecraftAsync()
@@ -156,10 +160,10 @@ HttpUtil.Initialize();
 
 #region Curseforge API
 
-//var curseforgeProvider = new CurseforgeProvider("$2a$10$Awb53b9gSOIJJkdV3Zrgp.CyFP.dI13QKbWn/4UZI4G4ff18WneB6");
-//await foreach (var cfResource in curseforgeProvider.GetFeaturedResourcesAsync()) {
-//    Console.WriteLine(cfResource.Name);
-//}
+CurseforgeProvider curseforgeProvider = "$2a$10$Awb53b9gSOIJJkdV3Zrgp.CyFP.dI13QKbWn/4UZI4G4ff18WneB6";
+await foreach (var cfResource in curseforgeProvider.SearchResourcesAsync("JEI")) {
+    Console.WriteLine(cfResource.Name);
+}
 
 #endregion
 
@@ -240,13 +244,12 @@ var asyncJavas = JavaUtil.EnumerableJavaAsync();
 
 #region 启动
 
-//var minecraft = minecraftParser.GetMinecraft("1.20.1-OptiFine_I6");
+//var minecraft = minecraftParser.GetMinecraft("1.8.9-PVP");
 //MinecraftRunner runner = new(new LaunchConfig {
 //    Account = new OfflineAuthenticator().Authenticate("Yang114"),
 //    MaxMemorySize = 2048,
 //    MinMemorySize = 512,
 //    LauncherName = "MinecraftLaunch",
-//    SaveName = "新的世界",
 //    JavaPath = minecraft.GetAppropriateJava(await asyncJavas.ToListAsync()),
 //}, minecraftParser);
 
@@ -265,11 +268,6 @@ var asyncJavas = JavaUtil.EnumerableJavaAsync();
 //    Console.WriteLine(item);
 //}
 
-#endregion
-
-#region Java 安装器
-var javaInstaller = JavaInstaller.Create("./Java");
-await javaInstaller.InstallAsync();
 #endregion
 
 Console.WriteLine("Done!");

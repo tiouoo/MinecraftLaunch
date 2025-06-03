@@ -9,6 +9,13 @@ namespace MinecraftLaunch.Utilities;
 public static class HttpUtil {
     public static IFlurlClient FlurlClient { get; private set; }
 
+    public static IFlurlRequest Request(Url url) {
+        if (FlurlClient is null)
+            throw new InvalidOperationException("FlurlClient is not initialized.");
+
+        return FlurlClient.Request(url);
+    }
+
     public static IFlurlRequest Request(string url) {
         if (FlurlClient is null)
             throw new InvalidOperationException("FlurlClient is not initialized.");
