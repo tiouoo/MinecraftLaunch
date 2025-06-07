@@ -37,7 +37,7 @@ public static class HttpUtil {
         return FlurlClient = new FlurlClient {
             Settings = {
                 Timeout = TimeSpan.FromSeconds(100),
-                JsonSerializer = new DefaultJsonSerializer(LauncherProfileParser.Get()),
+                JsonSerializer = new DefaultJsonSerializer(JsonSerializerUtil.GetDefaultOptions()),
             },
             Headers = {
                 { "User-Agent", "MinecraftLaunch/4.0" },

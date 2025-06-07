@@ -25,11 +25,10 @@ public sealed class MinecraftParser {
     }.ToFrozenDictionary();
 
     public DirectoryInfo Root { set; get; }
-    public LauncherProfileParser LauncherProfileParser { get; init; }
+    public static List<IDataProcessor> DataProcessors { get; } = [];
 
     public MinecraftParser(string root) {
         Root = new(root);
-        LauncherProfileParser = new(root);
     }
 
     public static implicit operator MinecraftParser(string minecraftRootPath) {
@@ -63,27 +62,14 @@ public sealed class MinecraftParser {
                 list.Add(entry);
                 if (entry is ModifiedMinecraftEntry m && m.HasInheritance && !inheritedInstanceAlreadyFound)
                     list.Add(m.InheritedMinecraft);
-
-                //Handle profiles
-                if (LauncherProfileParser.Profiles.TryGetValue(entry.Id, out var profile)) {
-                    profile.GameFolder = Path.Combine(entry.MinecraftFolderPath, "versions", entry.Id);
-                    profile.LastVersionId = entry.Id;
-                    LauncherProfileParser.Profiles![entry.Id] = profile;
-                    continue;
-                }
-
-                var gameProfile = new GameProfileEntry {
-                    Name = entry.Id,
-                    Created = DateTime.Now,
-                    LastVersionId = entry.Id,
-                    GameFolder = Path.Combine(entry.MinecraftFolderPath, "versions", entry.Id)
-                };
-
-                LauncherProfileParser.Profiles!.Add(entry.Id, gameProfile);
             } catch (Exception) { }
         }
 
-        _ = LauncherProfileParser.SaveAsync();
+        foreach (var processor in DataProcessors) {
+            processor.Handle(list);
+            _ = processor.SaveAsync();
+        }
+
         return list;
     }
 

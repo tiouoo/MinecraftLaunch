@@ -1,11 +1,9 @@
-﻿using MinecraftLaunch.Base.Models.Game;
-using MinecraftLaunch.Base.Models.JsonConverter;
+﻿using MinecraftLaunch.Base.Interfaces;
+using MinecraftLaunch.Base.Models.Game;
 using MinecraftLaunch.Extensions;
-using System.ComponentModel;
+using MinecraftLaunch.Utilities;
 using System.Text;
-using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace MinecraftLaunch.Components.Parser;
 
@@ -15,104 +13,58 @@ namespace MinecraftLaunch.Components.Parser;
 /// <remarks>
 /// 取自 launcher_profile.json
 /// </remarks>
-public sealed class LauncherProfileParser {
+public sealed class DefaultLauncherProfileParser : IDataProcessor {
     private readonly Guid _clientToken;
-    private readonly string _minecraftPath;
+    private string _filePath;
 
     private LauncherProfileEntry _launcherProfile;
+    public Dictionary<string, object> Datas { get; set; } = [];
 
-    public Dictionary<string, GameProfileEntry> Profiles { get; } = [];
-
-    public LauncherProfileParser(string minecraftPath, Guid clientToken = default) {
+    public DefaultLauncherProfileParser(Guid clientToken = default) {
         _clientToken = clientToken;
-        _minecraftPath = minecraftPath;
+    }
 
-        try {
-            Parse();
-        } catch (JsonException) {
-            var launcherProfile = new LauncherProfileEntry {
-                Profiles = [],
-                ClientToken = _clientToken.ToString("D"),
-                LauncherVersion = new LauncherVersionEntry {
-                    Format = 114514,
-                    Name = "MinecraftLaunch"
-                },
-            };
+    public void Handle(object data) {
+        Datas.Clear();
+        if (data is IEnumerable<MinecraftEntry> minecrafts && minecrafts.Any()) {
+            _filePath = Path.Combine(minecrafts.First()?.MinecraftFolderPath, "launcher_profiles.json");
+            if (File.Exists(_filePath)) {
+                var launcherProfileJson = File.ReadAllText(_filePath, Encoding.UTF8);
+                _launcherProfile = launcherProfileJson.Deserialize(new LauncherProfileEntryContext(
+                    JsonSerializerUtil.GetDefaultOptions()).LauncherProfileEntry);
+            }
 
-            _launcherProfile = launcherProfile;
-            string profileJson = _launcherProfile.Serialize(new LauncherProfileEntryContext(Get()).LauncherProfileEntry);
+            foreach (var minecraft in minecrafts) {
+                _launcherProfile ??= new() {
+                    Profiles = [],
+                    ClientToken = _clientToken.ToString("N"),
+                    LauncherVersion = new LauncherVersionEntry {
+                        Format = 6,
+                        Name = "MinecraftLaunch"
+                    }
+                };
 
-            if (!Directory.Exists(_minecraftPath))
-                Directory.CreateDirectory(_minecraftPath);
+                if (!_launcherProfile.Profiles.ContainsKey(minecraft.Id))
+                    _launcherProfile.Profiles.Add(minecraft.Id, new() {
+                        Type = "custom",
+                        Name = minecraft.Id,
+                        Created = DateTime.Now,
+                        LastVersionId = minecraft.Id,
+                        GameFolder = minecraft.ToWorkingPath(true),
+                        Resolution = new()
+                    });
+            }
 
-            File.WriteAllText(Path.Combine(_minecraftPath, "launcher_profiles.json"), profileJson);
+            Datas = _launcherProfile.Profiles
+                .ToDictionary(x => x.Key, x1 => x1.Value as object);
         }
-    }
-
-    public void Add(GameProfileEntry entry) {
-        Profiles.TryAdd(entry.Name, entry);
-    }
-
-    public void Remove(GameProfileEntry entry) {
-        Profiles.Remove(entry.Name);
-    }
-
-    public LauncherProfileEntry Parse() {
-        var filePath = Path.Combine(_minecraftPath, "launcher_profiles.json");
-
-        if (File.Exists(filePath)) {
-            var launcherProfileJson = File.ReadAllText(filePath, Encoding.UTF8);
-            _launcherProfile = launcherProfileJson.Deserialize(new LauncherProfileEntryContext(Get()).LauncherProfileEntry);
-
-            Profiles.Clear();
-            foreach (var profile in _launcherProfile.Profiles)
-                Profiles.Add(profile.Key, profile.Value);
-
-            return _launcherProfile;
-        }
-
-        var launcherProfile = new LauncherProfileEntry {
-            Profiles = [],
-            ClientToken = _clientToken.ToString("D"),
-            LauncherVersion = new LauncherVersionEntry {
-                Format = 114514,
-                Name = "MinecraftLaunch"
-            },
-        };
-
-        _launcherProfile = launcherProfile;
-        string profileJson = _launcherProfile.Serialize(new LauncherProfileEntryContext(Get()).LauncherProfileEntry);
-
-        if (!Directory.Exists(_minecraftPath))
-            Directory.CreateDirectory(_minecraftPath);
-
-        File.WriteAllText(filePath, profileJson);
-        return _launcherProfile;
     }
 
     public Task SaveAsync(CancellationToken cancellationToken = default) {
-        var filePath = Path.Combine(_minecraftPath, "launcher_profiles.json");
-        _launcherProfile.Profiles = Profiles;
+        _launcherProfile.Profiles = Datas.ToDictionary(x => x.Key, x1 => x1.Value as GameProfileEntry);
+        var json = _launcherProfile?.Serialize(new LauncherProfileEntryContext(
+            JsonSerializerUtil.GetDefaultOptions()).LauncherProfileEntry);
 
-        var json = _launcherProfile?.Serialize(new LauncherProfileEntryContext(Get()).LauncherProfileEntry);
-        return File.WriteAllTextAsync(filePath, json, cancellationToken);
+        return File.WriteAllTextAsync(_filePath, json, cancellationToken);
     }
-
-    #region Privates
-
-    internal static JsonSerializerOptions Get() {
-        var options = new JsonSerializerOptions {
-            MaxDepth = 100,
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-            Converters = {
-                new DateTimeJsonConverter()
-            },
-        };
-        
-        return options;
-    }
-
-    #endregion
 }

@@ -50,8 +50,8 @@ public record LauncherVersionEntry {
 
 public record ResolutionEntry {
     [JsonIgnore] public bool IsFullScreen { get; set; }
-    [JsonPropertyName("width")] public uint Width { get; set; }
-    [JsonPropertyName("height")] public uint Height { get; set; }
+    [JsonPropertyName("width")] public int Width { get; set; } = 854;
+    [JsonPropertyName("height")] public int Height { get; set; } = 480;
 
     public bool IsDefault() => Width == 0 && Height == 0;
 }
