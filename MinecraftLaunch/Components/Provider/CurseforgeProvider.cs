@@ -4,9 +4,7 @@ using MinecraftLaunch.Base.Enums;
 using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Extensions;
 using MinecraftLaunch.Utilities;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -15,15 +13,28 @@ using System.Web;
 namespace MinecraftLaunch.Components.Provider;
 
 public sealed class CurseforgeProvider {
-    public static string CurseforgeApiKey = string.Empty;
+    public static string CurseforgeApiKey { get; set; } = string.Empty;
     public readonly static string CurseforgeApi = "https://api.curseforge.com/v1";
 
-    public CurseforgeProvider(string apiKey) {
-        CurseforgeApiKey = apiKey;
-    }
+    public async Task<IEnumerable<CurseforgeResourceFile>> GetModFilesByFingerprints(int[] modFingerprints, CancellationToken cancellationToken = default) {
+        var request = CreateRequest("fingerprints", "432");
+        var payload = new CurseforgeFingerprintsRequestPayload(modFingerprints);
 
-    public static implicit operator CurseforgeProvider(string apiKey) {
-        return new(apiKey);
+        using var responseMessage = await request.PostAsync(JsonContent.Create(payload,
+            CurseforgeRequestPayloadContext.Default.CurseforgeFingerprintsRequestPayload),
+                cancellationToken: cancellationToken);
+
+        var jsonNode = (await responseMessage.GetStringAsync())
+            .AsNode()
+            .Select("data");
+
+        var exactMatches = jsonNode.GetEnumerable("exactMatches");
+        if (exactMatches is null)
+            return [];
+
+        return exactMatches.SelectMany(x => x.GetEnumerable("latestFiles"))
+            .Select(ParseFile)
+            .OrderByDescending(x => x.Published);
     }
 
     public async Task<IEnumerable<CurseforgeResource>> GetFeaturedResourcesAsync(CancellationToken cancellationToken = default) {
@@ -31,7 +42,7 @@ public sealed class CurseforgeProvider {
         var payload = new CurseforgeFeaturedRequestPayload(432, [0]);
 
         using var responseMessage = await request.PostAsync(JsonContent.Create(payload,
-            CurseforgeFeaturedRequestPayloadContext.Default.CurseforgeFeaturedRequestPayload),
+            CurseforgeRequestPayloadContext.Default.CurseforgeFeaturedRequestPayload),
                 cancellationToken: cancellationToken);
 
         var jsonNode = (await responseMessage.GetStringAsync())
@@ -155,6 +166,20 @@ public sealed class CurseforgeProvider {
         };
     }
 
+    private static CurseforgeResourceFile ParseFile(JsonNode node) {
+        return new CurseforgeResourceFile {
+            Id = node.GetInt32("id"),
+            ModId = node.GetInt32("modId"),
+            FileName = node.GetString("fileName"),
+            Published = node.GetDateTime("fileDate"),
+            IsAvailable = node.GetBool("isAvailable"),
+            ReleaseType = node.GetInt32("releaseType"),
+            DisplayName = node.GetString("displayName"),
+            DownloadUrl = node.GetString("downloadUrl"),
+            MinecraftVersions = node.GetEnumerable<string>("gameVersions")
+        };
+    }
+
     private static IFlurlRequest CreateRequest(Url url) {
         CheckApiKey();
 
@@ -187,6 +212,8 @@ public class InvalidModpackFileException : Exception {
 }
 
 internal record CurseforgeFeaturedRequestPayload(int gameId, int[] excludedModIds, string gameVersionTypeId = null);
+internal record CurseforgeFingerprintsRequestPayload(int[] fingerprints);
 
 [JsonSerializable(typeof(CurseforgeFeaturedRequestPayload))]
-internal sealed partial class CurseforgeFeaturedRequestPayloadContext : JsonSerializerContext;
+[JsonSerializable(typeof(CurseforgeFingerprintsRequestPayload))]
+internal sealed partial class CurseforgeRequestPayloadContext : JsonSerializerContext;
