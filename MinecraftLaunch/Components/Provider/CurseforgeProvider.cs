@@ -16,7 +16,7 @@ public sealed class CurseforgeProvider {
     public static string CurseforgeApiKey { get; set; } = string.Empty;
     public readonly static string CurseforgeApi = "https://api.curseforge.com/v1";
 
-    public async Task<IEnumerable<CurseforgeResourceFile>> GetModFilesByFingerprintsAsync(int[] modFingerprints, CancellationToken cancellationToken = default) {
+    public async Task<IEnumerable<CurseforgeResourceFile>> GetResourceFilesByFingerprintsAsync(int[] modFingerprints, CancellationToken cancellationToken = default) {
         var request = CreateRequest("fingerprints", "432");
         var payload = new CurseforgeFingerprintsRequestPayload(modFingerprints);
 
@@ -35,6 +35,21 @@ public sealed class CurseforgeProvider {
         return exactMatches.SelectMany(x => x.GetEnumerable("latestFiles"))
             .Select(ParseFile)
             .OrderByDescending(x => x.Published);
+    }
+
+    public async Task<IEnumerable<CurseforgeResource>> GetResourcesByModIdsAsync(IEnumerable<long> modIds, CancellationToken cancellationToken = default) {
+        var request = CreateRequest("mods");
+        var payload = new CurseforgeResourcesRequestPayload([.. modIds]);
+
+        using var responseMessage = await request.PostAsync(JsonContent.Create(payload,
+            CurseforgeRequestPayloadContext.Default.CurseforgeResourcesRequestPayload),
+                cancellationToken: cancellationToken);
+
+        var jsonNode = (await responseMessage.GetStringAsync())
+            .AsNode()
+            .Select("data");
+
+        return jsonNode.GetEnumerable().Select(ParseDetail);
     }
 
     public async Task<IEnumerable<CurseforgeResource>> GetFeaturedResourcesAsync(CancellationToken cancellationToken = default) {
@@ -166,6 +181,24 @@ public sealed class CurseforgeProvider {
         };
     }
 
+    //Fucking cf api
+    private static CurseforgeResource ParseDetail(JsonNode node) {
+        return new CurseforgeResource {
+            Id = node.GetInt32("id"),
+            ClassId = node.GetInt32("classId"),
+            DownloadCount = node.GetInt32("downloadCount"),
+            Name = node.GetString("name"),
+            IconUrl = node.GetString("iconUrl"),
+            Summary = node.GetString("summary"),
+            WebsiteUrl = node.GetString("websiteUrl"),
+            DateModified = node.GetDateTime("dateModified"),
+            Authors = node.GetEnumerable<string>("authors", "name"),
+            Categories = node.GetEnumerable<string>("categories", "name"),
+            Screenshots = node.GetEnumerable<string>("screenshots", "url")
+        };
+
+    }
+
     private static CurseforgeResourceFile ParseFile(JsonNode node) {
         return new CurseforgeResourceFile {
             Id = node.GetInt32("id"),
@@ -212,9 +245,11 @@ public class InvalidModpackFileException : Exception {
     public InvalidModpackFileException(string message, Exception inner) : base(message, inner) { }
 }
 
-internal record CurseforgeFeaturedRequestPayload(int gameId, int[] excludedModIds, string gameVersionTypeId = null);
+internal record CurseforgeResourcesRequestPayload(long[] modIds);
 internal record CurseforgeFingerprintsRequestPayload(int[] fingerprints);
+internal record CurseforgeFeaturedRequestPayload(int gameId, int[] excludedModIds, string gameVersionTypeId = null);
 
 [JsonSerializable(typeof(CurseforgeFeaturedRequestPayload))]
+[JsonSerializable(typeof(CurseforgeResourcesRequestPayload))]
 [JsonSerializable(typeof(CurseforgeFingerprintsRequestPayload))]
 internal sealed partial class CurseforgeRequestPayloadContext : JsonSerializerContext;

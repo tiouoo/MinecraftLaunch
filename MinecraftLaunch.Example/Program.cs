@@ -163,6 +163,15 @@ HttpUtil.Initialize();
 #region Curseforge API
 
 //CurseforgeProvider curseforgeProvider = new();
+//foreach (var cfResource in await curseforgeProvider.GetResourcesByModIdsAsync([238222])) {
+//    Console.WriteLine(cfResource.Id);
+//    Console.WriteLine(cfResource.Name);
+//    Console.WriteLine(cfResource.Summary);
+//    Console.WriteLine(string.Join('，', cfResource.Categories));
+//    Console.WriteLine(string.Join('，', cfResource.Authors));
+//    Console.WriteLine(string.Join('，', cfResource.Screenshots));
+//}
+
 //foreach (var cfResource in await curseforgeProvider.GetModFilesByFingerprintsAsync([568671043])) {
 //    Console.WriteLine(cfResource.FileName);
 //    Console.WriteLine(cfResource.DownloadUrl);
@@ -175,8 +184,12 @@ HttpUtil.Initialize();
 #region Modrinth API
 
 //ModrinthProvider modrinthProvider = new();
-//foreach (var mhResource in await modrinthProvider.SearchAsync("Iris")) {
+//foreach (var mhResource in await modrinthProvider.SearchByUserAsync("Snownee")) {
 //    Console.WriteLine(mhResource.Name);
+//    Console.WriteLine(mhResource.Author);
+//    Console.WriteLine($"Categories:{string.Join('，', mhResource.Categories)}");
+//    Console.WriteLine($"ScreenshotUrls:{string.Join('，', mhResource.ScreenshotUrls)}");
+//    Console.WriteLine();
 //}
 
 #endregion

@@ -97,12 +97,12 @@ public static class JsonNodeExtension {
     public static IEnumerable<T> GetEnumerable<T>(this JsonNode node, string name) {
         return node.Select(name)
             .AsArray()
-            .Select(x => x.GetValue<T>());
+            ?.Select(x => x.GetValue<T>());
     }
 
     public static IEnumerable<T> GetEnumerable<T>(this JsonNode node, string name, string elementName) {
         return node.Select(name)
             .AsArray()
-            .Select(x => x.Select(elementName).GetValue<T>());
+            ?.Select(x => x.Select(elementName).GetValue<T>());
     }
 }

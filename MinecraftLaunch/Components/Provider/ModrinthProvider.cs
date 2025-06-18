@@ -36,6 +36,28 @@ public sealed class ModrinthProvider {
         return hashes.Select(x => ParseFile(jsonNode.Select(x)));
     }
 
+    public async Task<ModrinthResource> SearchByProjectIdAsync(string projectId, CancellationToken cancellationToken = default) {
+        var url = new Url(ModrinthApi)
+            .AppendPathSegments("project", projectId);
+
+        var request = HttpUtil.Request(url);
+        var responseMessage = await request.GetStringAsync(cancellationToken: cancellationToken);
+        return Parse(responseMessage.AsNode());
+    }
+
+    public async Task<IEnumerable<ModrinthResource>> SearchByProjectIdsAsync(IEnumerable<string> projectIds, CancellationToken cancellationToken = default) {
+        var idsJson = projectIds.Serialize(ModrinthProviderContext.Default.IEnumerableString);
+
+        var url = new Url(ModrinthApi).AppendPathSegment("projects")
+            .AppendQueryParam("ids", idsJson, true);
+
+        var request = HttpUtil.Request(url);
+        var responseMessage = await request.GetStringAsync(cancellationToken: cancellationToken);
+        var jsonNode = responseMessage.AsNode();
+
+        return jsonNode.GetEnumerable().Select(x => Parse(x, true));
+    }
+
     public async Task<IEnumerable<ModrinthResource>> GetFeaturedResourcesAsync(CancellationToken cancellationToken = default) {
         var request = HttpUtil.Request(ModrinthApi, "search");
 
@@ -45,7 +67,7 @@ public sealed class ModrinthProvider {
         if (jsonNode is null)
             return [];
 
-        return jsonNode.GetEnumerable("hits").Select(Parse);
+        return jsonNode.GetEnumerable("hits").Select(x => Parse(x));
     }
 
     public async Task<IEnumerable<ModrinthResource>> SearchByUserAsync(string user, CancellationToken cancellationToken = default) {
@@ -58,11 +80,10 @@ public sealed class ModrinthProvider {
             return [];
 
         return jsonNode.GetEnumerable().Select(x => {
-            var resource = Parse(x);
+            var resource = Parse(x, true);
             resource.Author = user;
             return resource;
         });
-
     }
 
     public async Task<IEnumerable<ModrinthResource>> SearchAsync(
@@ -110,12 +131,12 @@ public sealed class ModrinthProvider {
         if (jsonNode is null)
             return [];
 
-        return jsonNode.GetEnumerable("hits").Select(Parse);
+        return jsonNode.GetEnumerable("hits").Select(x => Parse(x));
     }
 
     #region Private
 
-    private static ModrinthResource Parse(JsonNode jsonNode) {
+    private static ModrinthResource Parse(JsonNode jsonNode, bool isDetail = false) {
         return new ModrinthResource {
             Id = jsonNode.GetString("id"),
             Slug = jsonNode.GetString("slug"),
@@ -126,13 +147,15 @@ public sealed class ModrinthProvider {
             ProjectType = jsonNode.GetString("project_type"),
             DownloadCount = jsonNode.GetInt32("downloads"),
             Categories = jsonNode.GetEnumerable<string>("categories"),
-            ScreenshotUrls = jsonNode.GetEnumerable<string>("gallery"),
+            ScreenshotUrls = isDetail
+                ? jsonNode?.GetEnumerable<string>("gallery", "url")
+                : jsonNode?.GetEnumerable<string>("gallery"),
             Updated = jsonNode.TryGetValue<DateTime>("date_modified", out var updated)
-                 ? updated
-                 : jsonNode.GetDateTime("updated"),
+                ? updated
+                : jsonNode.GetDateTime("updated"),
             Published = jsonNode.TryGetValue<DateTime>("date_created", out var published)
-                 ? published
-                 : jsonNode.GetDateTime("published")
+                ? published
+                : jsonNode.GetDateTime("published")
         };
     }
 
@@ -161,5 +184,6 @@ public sealed class ModrinthProvider {
 internal record ModrinthFilesUpdateCheckRequestPayload(string[] hashes, string[] game_versions, string algorithm = "sha1");
 
 [JsonSerializable(typeof(List<List<string>>))]
+[JsonSerializable(typeof(IEnumerable<string>))]
 [JsonSerializable(typeof(ModrinthFilesUpdateCheckRequestPayload))]
 internal sealed partial class ModrinthProviderContext : JsonSerializerContext;
