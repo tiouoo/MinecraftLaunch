@@ -17,14 +17,22 @@ public sealed class ModrinthProvider {
     public async Task<IEnumerable<ModrinthResourceFiles>> GetModFilesBySha1Async(
         string[] hashes,
         string version,
+        ModLoaderType modLoaderType,
         HashType type = HashType.SHA1,
         CancellationToken cancellationToken = default) {
         var url = new Url(ModrinthApi)
             .AppendPathSegments("version_files", "update");
 
         var request = HttpUtil.Request(url);
-        var payload = new ModrinthFilesUpdateCheckRequestPayload(hashes, [version],
-            type is HashType.SHA1 ? "sha1" : "sha512");
+        var payload = new ModrinthFilesUpdateCheckRequestPayload(hashes,
+            [version],
+            [modLoaderType switch {
+                ModLoaderType.Quilt => "quilt",
+                ModLoaderType.Forge => "forge",
+                ModLoaderType.Fabric => "fabric",
+                ModLoaderType.NeoForge => "neoforge",
+                _ => "",
+            }], type is HashType.SHA1 ? "sha1" : "sha512");
 
         using var responseMessage = await request.PostAsync(JsonContent.Create(payload,
             ModrinthProviderContext.Default.ModrinthFilesUpdateCheckRequestPayload),
@@ -161,7 +169,7 @@ public sealed class ModrinthProvider {
     }
 
     private static ModrinthResourceFiles ParseFile(JsonNode node) {
-        if(node == null) return null;
+        if (node == null) return null;
 
         return new ModrinthResourceFiles {
             Id = node.GetString("project_id"),
@@ -184,7 +192,7 @@ public sealed class ModrinthProvider {
     #endregion
 }
 
-internal record ModrinthFilesUpdateCheckRequestPayload(string[] hashes, string[] game_versions, string algorithm = "sha1");
+internal record ModrinthFilesUpdateCheckRequestPayload(string[] hashes, string[] game_versions, string[] loaders, string algorithm = "sha1");
 
 [JsonSerializable(typeof(List<List<string>>))]
 [JsonSerializable(typeof(IEnumerable<string>))]
