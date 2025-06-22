@@ -12,6 +12,7 @@ public record CurseforgeResource {
     public required IEnumerable<string> Authors { get; init; }
     public required IEnumerable<string> Categories { get; init; }
     public required IEnumerable<string> Screenshots { get; init; }
+    public IEnumerable<CurseforgeResourceFile> LatestFiles { get; init; }
 }
 
 public record CurseforgeResourceFile {
@@ -27,4 +28,4 @@ public record CurseforgeResourceFile {
     public required IEnumerable<string> MinecraftVersions { get; init; }
 
     public bool IsReleased => ReleaseType is 1;
-}//
+}

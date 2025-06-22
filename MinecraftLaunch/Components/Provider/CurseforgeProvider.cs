@@ -16,7 +16,7 @@ public sealed class CurseforgeProvider {
     public static string CurseforgeApiKey { get; set; } = string.Empty;
     public readonly static string CurseforgeApi = "https://api.curseforge.com/v1";
 
-    public async Task<IEnumerable<CurseforgeResourceFile>> GetResourceFilesByFingerprintsAsync(uint[] modFingerprints, CancellationToken cancellationToken = default) {
+    public async Task<IDictionary<CurseforgeResourceFile, IEnumerable<CurseforgeResourceFile>>> GetResourceFilesByFingerprintsAsync(uint[] modFingerprints, CancellationToken cancellationToken = default) {
         var request = CreateRequest("fingerprints", "432");
         var payload = new CurseforgeFingerprintsRequestPayload(modFingerprints);
 
@@ -24,18 +24,16 @@ public sealed class CurseforgeProvider {
             CurseforgeRequestPayloadContext.Default.CurseforgeFingerprintsRequestPayload),
                 cancellationToken: cancellationToken);
 
-        var jsonNode = (await responseMessage.GetStringAsync())
-            .AsNode()
+        var json = await responseMessage.GetStringAsync();
+        var jsonNode = json.AsNode()
             .Select("data");
 
         var exactMatches = jsonNode.GetEnumerable("exactMatches");
         if (exactMatches is null)
-            return [];
+            return null;
 
-        return exactMatches?.SelectMany(x => x.GetEnumerable("latestFiles"))
-            .Select(ParseFile)
-            .Where(x => x is not null)
-            .OrderByDescending(x => x.Published);
+        return exactMatches.ToDictionary(x => ParseFile(x.Select("file")),
+            x1 => x1.GetEnumerable("latestFiles").Select(ParseFile));
     }
 
     public async Task<IEnumerable<CurseforgeResource>> GetResourcesByModIdsAsync(IEnumerable<long> modIds, CancellationToken cancellationToken = default) {
@@ -46,8 +44,8 @@ public sealed class CurseforgeProvider {
             CurseforgeRequestPayloadContext.Default.CurseforgeResourcesRequestPayload),
                 cancellationToken: cancellationToken);
 
-        var jsonNode = (await responseMessage.GetStringAsync())
-            .AsNode()
+        var json = await responseMessage.GetStringAsync();
+        var jsonNode = json.AsNode()
             .Select("data");
 
         return jsonNode.GetEnumerable().Select(ParseDetail);
@@ -195,7 +193,8 @@ public sealed class CurseforgeProvider {
             DateModified = node.GetDateTime("dateModified"),
             Authors = node.GetEnumerable<string>("authors", "name"),
             Categories = node.GetEnumerable<string>("categories", "name"),
-            Screenshots = node.GetEnumerable<string>("screenshots", "url")
+            Screenshots = node.GetEnumerable<string>("screenshots", "url"),
+            LatestFiles = node.GetEnumerable("latestFiles").Select(ParseFile)
         };
 
     }
