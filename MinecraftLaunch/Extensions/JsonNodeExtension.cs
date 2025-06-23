@@ -1,10 +1,42 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
+using System.Text.RegularExpressions;
 
 namespace MinecraftLaunch.Extensions;
 
-public static class JsonNodeExtension {
+public static partial class JsonNodeExtension {
+    public static string FixJson(this string errorJson) => errorJson
+        .FixJsonStringNewlines()
+        .FixDuplicateEmptyKeys();
+
+    public static string FixJsonStringNewlines(this string json) => JsonFixRegex().Replace(json, match => {
+        var value = match.Groups[1].Value;
+        if (JsonFieldRegex().IsMatch(match.Value) || !value.Contains('\n') && !value.Contains('\r'))
+            return match.Value;
+
+        var fixedValue = value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\r\n", "\\n")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\n");
+
+        return $"\"{fixedValue}\"";
+    });
+
+    public static string FixDuplicateEmptyKeys(this string json) {
+        bool firstFound = false;
+        return JsonDuplicateEmptyKeysRegex().Replace(json, match => {
+            if (!firstFound) {
+                firstFound = true;
+                return match.Value;
+            }
+
+            return string.Empty;
+        });
+    }
+
     public static string Serialize<T>(this T value, JsonTypeInfo<T> jsonType) {
         return JsonSerializer.Serialize(value, jsonType);
     }
@@ -105,4 +137,13 @@ public static class JsonNodeExtension {
             .AsArray()
             ?.Select(x => x.Select(elementName).GetValue<T>());
     }
+
+    [GeneratedRegex(@"^""[^""]*""\s*:")]
+    private static partial Regex JsonFieldRegex();
+
+    [GeneratedRegex("\"((?:[^\"\\\\]|\\\\.)*)\"", RegexOptions.Compiled)]
+    private static partial Regex JsonFixRegex();
+
+    [GeneratedRegex(@"(""\""\s*:\s*\""""\s*,?\s*)+")]
+    private static partial Regex JsonDuplicateEmptyKeysRegex();
 }
