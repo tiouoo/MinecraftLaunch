@@ -134,8 +134,13 @@ public static partial class JsonNodeExtension {
 
     public static IEnumerable<T> GetEnumerable<T>(this JsonNode node, string name, string elementName) {
         return node.Select(name)
-            .AsArray()
-            ?.Select(x => x.Select(elementName).GetValue<T>());
+            .AsArray()?
+            .Select(x => {
+                var child = x.Select(elementName);
+                return child is JsonValue value
+                    ? value.GetValue<T>()
+                    : default;
+            }).Where(v => v is not null)!;
     }
 
     [GeneratedRegex(@"^""[^""]*""\s*:")]

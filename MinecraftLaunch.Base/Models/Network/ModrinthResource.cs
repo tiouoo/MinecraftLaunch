@@ -17,6 +17,7 @@ public record ModrinthResource : IResource {
     public DateTime DateModified { get; init; }
     public IEnumerable<string> Categories { get; init; }
     public IEnumerable<string> Screenshots { get; init; }
+    public IEnumerable<string> MinecraftVersions { get; init; }
 
     public string WebLink => $"https://modrinth.com/{ProjectType}/{Slug}";
 }

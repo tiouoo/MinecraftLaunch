@@ -12,6 +12,7 @@ public record CurseforgeResource : IResource {
     public required string WebsiteUrl { get; init; }
     public required DateTime DateModified { get; init; }
     public required IEnumerable<string> Authors { get; init; }
+    public required IEnumerable<string> MinecraftVersions { get; init; }
     public required IEnumerable<string> Categories { get; init; }
     public required IEnumerable<string> Screenshots { get; init; }
     public IEnumerable<CurseforgeResourceFile> LatestFiles { get; init; }

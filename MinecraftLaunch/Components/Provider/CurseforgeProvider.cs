@@ -48,7 +48,7 @@ public sealed class CurseforgeProvider {
         var jsonNode = json.AsNode()
             .Select("data");
 
-        return jsonNode.GetEnumerable().Select(ParseDetail);
+        return jsonNode.GetEnumerable().Select(Parse);
     }
 
     public async Task<IEnumerable<CurseforgeResource>> GetFeaturedResourcesAsync(CancellationToken cancellationToken = default) {
@@ -170,31 +170,15 @@ public sealed class CurseforgeProvider {
             ClassId = node.GetInt32("classId"),
             DownloadCount = node.GetInt32("downloadCount"),
             Name = node.GetString("name"),
-            IconUrl = node.GetString("iconUrl"),
             Summary = node.GetString("summary"),
-            WebsiteUrl = node.GetString("websiteUrl"),
             DateModified = node.GetDateTime("dateModified"),
-            Authors = node.GetEnumerable<string>("authors"),
-            Categories = node.GetEnumerable<string>("categories"),
-            Screenshots = node.GetEnumerable<string>("screenshots")
-        };
-    }
-
-    //Fucking cf api
-    private static CurseforgeResource ParseDetail(JsonNode node) {
-        return new CurseforgeResource {
-            Id = node.GetInt32("id"),
-            ClassId = node.GetInt32("classId"),
-            DownloadCount = node.GetInt32("downloadCount"),
-            Name = node.GetString("name"),
-            IconUrl = node.GetString("iconUrl"),
-            Summary = node.GetString("summary"),
-            WebsiteUrl = node.GetString("websiteUrl"),
-            DateModified = node.GetDateTime("dateModified"),
+            IconUrl = node.Select("logo").GetString("thumbnailUrl"),
+            WebsiteUrl = node.Select("links").GetString("websiteUrl"),
             Authors = node.GetEnumerable<string>("authors", "name"),
             Categories = node.GetEnumerable<string>("categories", "name"),
             Screenshots = node.GetEnumerable<string>("screenshots", "url"),
-            LatestFiles = node.GetEnumerable("latestFiles").Select(ParseFile)
+            LatestFiles = node.GetEnumerable("latestFiles").Select(ParseFile),
+            MinecraftVersions = node.GetEnumerable<string>("latestFilesIndexes", "gameVersion").Distinct()
         };
 
     }

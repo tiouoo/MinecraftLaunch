@@ -1,21 +1,7 @@
-﻿using Flurl.Http;
-using Flurl.Http.Configuration;
-using MinecraftLaunch;
-using MinecraftLaunch.Base.Enums;
-using MinecraftLaunch.Base.Interfaces;
-using MinecraftLaunch.Base.Models.Game;
-using MinecraftLaunch.Components.Authenticator;
-using MinecraftLaunch.Components.Downloader;
-using MinecraftLaunch.Components.Installer;
-using MinecraftLaunch.Components.Installer.Modpack;
-using MinecraftLaunch.Components.Logging;
+﻿using MinecraftLaunch;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Components.Provider;
-using MinecraftLaunch.Extensions;
-using MinecraftLaunch.Launch;
 using MinecraftLaunch.Utilities;
-using NbtToolkit;
-using System.Net;
 
 DownloadMirrorManager.MaxThread = 256;
 DownloadMirrorManager.IsEnableMirror = false;
@@ -163,19 +149,35 @@ HttpUtil.Initialize();
 #region Curseforge API
 
 //CurseforgeProvider curseforgeProvider = new();
-//foreach (var cfResource in await curseforgeProvider.GetResourcesByModIdsAsync([238222])) {
-//    Console.WriteLine(cfResource.Id);
-//    Console.WriteLine(cfResource.Name);
-//    Console.WriteLine(cfResource.Summary);
-//    Console.WriteLine(string.Join('，', cfResource.Categories));
-//    Console.WriteLine(string.Join('，', cfResource.Authors));
-//    Console.WriteLine(string.Join('，', cfResource.Screenshots));
+//foreach (var cfResource in await curseforgeProvider.SearchResourcesAsync("JEI")) {
+//    Console.WriteLine("Id： " + cfResource.Id);
+//    Console.WriteLine("ClassId： " + cfResource.ClassId);
+//    Console.WriteLine("Name： " + cfResource.Name);
+//    Console.WriteLine("Summary： " + cfResource.Summary);
+//    Console.WriteLine("IconUrl： " + cfResource.IconUrl);
+//    Console.WriteLine("WebsiteUrl： " + cfResource.WebsiteUrl);
+//    Console.WriteLine("DownloadCount： " + cfResource.DownloadCount);
+//    Console.WriteLine("DateModified： " + cfResource.DateModified);
+//    Console.WriteLine("MinecraftVersions： " + string.Join('，', cfResource.MinecraftVersions));
+//    Console.WriteLine("Categories： " + string.Join('，', cfResource.Categories));
+//    Console.WriteLine("Authors： " + string.Join('，', cfResource.Authors));
+//    Console.WriteLine("Screenshots： " + string.Join('，', cfResource.Screenshots));
+//    Console.WriteLine("LatestFiles - FileName： " + string.Join('，', cfResource.LatestFiles.Select(x => x.FileName)));
+//    Console.WriteLine();
 //}
 
-//foreach (var cfResource in await curseforgeProvider.GetModFilesByFingerprintsAsync([568671043])) {
-//    Console.WriteLine(cfResource.FileName);
-//    Console.WriteLine(cfResource.DownloadUrl);
-//    Console.WriteLine($"is need update:{!lf.Equals(cfResource.FileFingerprint)}");
+//foreach (var cfResources in await curseforgeProvider.GetResourceFilesByFingerprintsAsync([568671043])) {
+//    var cfResource = cfResources.Key;
+
+//    Console.WriteLine("Id： " + cfResource.Id);
+//    Console.WriteLine("ModId： " + cfResource.ModId);
+//    Console.WriteLine("FileName： " + cfResource.FileName);
+//    Console.WriteLine("Published： " + cfResource.Published);
+//    Console.WriteLine("IsAvailable： " + cfResource.IsAvailable);
+//    Console.WriteLine("ReleaseType： " + cfResource.ReleaseType);
+//    Console.WriteLine("DownloadUrl： " + cfResource.DownloadUrl);
+//    Console.WriteLine("FileFingerprint： " + cfResource.FileFingerprint);
+//    Console.WriteLine("MinecraftVersions： " + string.Join('，', cfResource.MinecraftVersions));
 //    Console.WriteLine();
 //}
 
@@ -184,11 +186,16 @@ HttpUtil.Initialize();
 #region Modrinth API
 
 //ModrinthProvider modrinthProvider = new();
-//foreach (var mhResource in await modrinthProvider.SearchByUserAsync("Snownee")) {
+//foreach (var mhResource in await modrinthProvider.SearchAsync("Toki")) {
 //    Console.WriteLine(mhResource.Name);
 //    Console.WriteLine(mhResource.Author);
-//    Console.WriteLine($"Categories:{string.Join('，', mhResource.Categories)}");
-//    Console.WriteLine($"ScreenshotUrls:{string.Join('，', mhResource.ScreenshotUrls)}");
+//    Console.WriteLine(mhResource.Updated);
+//    Console.WriteLine(mhResource.DateModified);
+//    Console.WriteLine(mhResource.Summary);
+//    Console.WriteLine(mhResource.IconUrl);
+//    Console.WriteLine($"Categories: {string.Join('，', mhResource.Categories)}");
+//    Console.WriteLine($"ScreenshotUrls: {string.Join('，', mhResource.Screenshots)}");
+//    Console.WriteLine($"MinecraftVersions: {string.Join('，', mhResource.MinecraftVersions)}");
 //    Console.WriteLine();
 //}
 

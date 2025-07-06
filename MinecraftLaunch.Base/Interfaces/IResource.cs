@@ -8,4 +8,5 @@ public interface IResource {
     DateTime DateModified { get; init; }
     IEnumerable<string> Categories { get; init; }
     IEnumerable<string> Screenshots { get; init; }
+    IEnumerable<string> MinecraftVersions { get; init; }
 }

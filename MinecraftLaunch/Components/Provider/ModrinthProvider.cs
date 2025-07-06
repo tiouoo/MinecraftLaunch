@@ -159,6 +159,9 @@ public sealed class ModrinthProvider {
             Screenshots = isDetail
                 ? jsonNode?.GetEnumerable<string>("gallery", "url")
                 : jsonNode?.GetEnumerable<string>("gallery"),
+            MinecraftVersions = isDetail
+                ? jsonNode?.GetEnumerable<string>("game_versions")
+                : jsonNode?.GetEnumerable<string>("versions"),
             Updated = jsonNode.TryGetValue<DateTime>("date_modified", out var updated)
                 ? updated
                 : jsonNode.GetDateTime("updated"),
