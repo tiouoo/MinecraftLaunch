@@ -11,8 +11,9 @@ public record DownloadRequest {
     public Action<ResourceDownloadProgressChangedEventArgs> ProgressChanged { get; set; }
 
     public DownloadRequest() { }
-    public DownloadRequest(string url, string localPath) {
+    public DownloadRequest(string url, string localPath, long size = -1) {
         Url = url;
+        Size = size;
         FileInfo = new(localPath);
     }
 }
@@ -23,9 +24,6 @@ public record GroupDownloadRequest {
     public IEnumerable<DownloadRequest> Files { get; set; }
     public Action<System.EventArgs> Completed { get; set; }
     public Action<ResourceDownloadProgressChangedEventArgs> ProgressChanged { get; set; }
-
-    //public Action<double> DownloadSpeedChanged { get; set; }
-    //public Action<DownloadRequest, DownloadResult> SingleRequestCompleted { get; set; }
 
     public GroupDownloadRequest(IEnumerable<DownloadRequest> files) {
         Files = files;

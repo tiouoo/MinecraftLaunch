@@ -3,7 +3,6 @@ using MinecraftLaunch.Base.EventArgs;
 using MinecraftLaunch.Base.Interfaces;
 using MinecraftLaunch.Base.Models.Network;
 using System.Buffers;
-using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
@@ -23,6 +22,9 @@ public sealed class DefaultDownloader : IDownloader {
         public List<DownloadRequest> FailedRequests = [];
     }
 
+    private const double kilobyte = 1024.0;
+    private const double megabyte = kilobyte * 1024.0;
+    private const double gigabyte = megabyte * 1024.0;
     private const int BufferSize = 128 * 1024;
     private const int MaxRetryPerSegment = 3;
     private const long SegmentThreshold = 5L * 1024 * 1024;
@@ -137,6 +139,27 @@ public sealed class DefaultDownloader : IDownloader {
             Failed = states.FailedRequests,
             Type = DownloadResultType.Successful,
         };
+    }
+
+    public static string FormatSize(double bytes, bool includePerSecond = false) {
+        string suffix;
+        if (bytes < kilobyte)
+            suffix = "B";
+        else if (bytes < megabyte) {
+            bytes /= kilobyte;
+            suffix = "KB";
+        } else if (bytes < gigabyte) {
+            bytes /= megabyte;
+            suffix = "MB";
+        } else {
+            bytes /= gigabyte;
+            suffix = "GB";
+        }
+
+        // 格式精度控制
+        string format = bytes < 100 ? "0.00" : "0.0";
+        string result = bytes.ToString(format) + " " + suffix;
+        return includePerSecond ? result + "/s" : result;
     }
 
     private static async Task<DownloadResult> DownloadAsync(DownloadRequest request, DownloadStates states, CancellationToken cancellationToken = default) {

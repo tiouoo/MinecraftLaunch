@@ -5,10 +5,12 @@ using System.Text.Json.Serialization;
 namespace MinecraftLaunch.Base.Models.Game;
 
 public class AssstIndex : MinecraftDependency, IDownloadDependency, IVerifiableDependency {
+    long? IVerifiableDependency.Size => Size;
+
     [JsonPropertyName("id")] public string Id { get; set; }
     [JsonPropertyName("url")] public string Url { get; set; }
     [JsonPropertyName("sha1")] public string Sha1 { get; set; }
-    [JsonPropertyName("size")] public long? Size { get; set; }
+    [JsonPropertyName("size")] public long Size { get; set; }
 
     [JsonIgnore] public override string FilePath => Path.Combine("assets", "indexes", $"{Id}.json");
 }

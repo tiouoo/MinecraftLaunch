@@ -9,6 +9,6 @@ public sealed class ResourceDownloadProgressChangedEventArgs : System.EventArgs 
     public TimeSpan EstimatedRemaining { get; set; }
 
     public double Percentage => TotalBytes > 0
-        ? DownloadedBytes / TotalBytes
+        ? DownloadedBytes * 100 / TotalBytes
         : 0;
 }

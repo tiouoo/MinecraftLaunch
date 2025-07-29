@@ -1,10 +1,7 @@
 ﻿using MinecraftLaunch;
-using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Components.Downloader;
 using MinecraftLaunch.Components.Installer;
-using MinecraftLaunch.Utilities;
 using System.Diagnostics;
-using System.Text.Json.Nodes;
 
 InitializeHelper.Initialize(settings => {
     settings.MaxThread = 256;
@@ -13,49 +10,16 @@ InitializeHelper.Initialize(settings => {
     settings.CurseForgeApiKey = "Your Curseforge API";
 });
 
-//var r = Stopwatch.StartNew();
-
-//string indexFile = @"D://GamePackage//.minecraft//assets//indexes//26.json";
-//var node = JsonNode.Parse(File.ReadAllText(indexFile))!["objects"]!
-//    .AsObject();
-
-//var downloads = node.Select(x => (Guid.NewGuid().ToString("N") + Path.GetExtension(x.Key), x.Value["size"]!.GetValue<long>(),
-//    $"https://resources.download.minecraft.net/{x.Value["hash"]!.GetValue<string>()[..2]}/{x.Value["hash"]!.GetValue<string>()}"));
-
-//var downloader = new DefaultDownloader();
-
-////downloader.ProgressChanged += (s, e) => {
-////    Console.WriteLine(
-////        $"文件: {e.CompletedCount}/{e.TotalCount} - {FormatSize(e.DownloadedBytes)}/{FormatSize(e.TotalBytes)} - 进度: {e.Percentage:F2}% - 速度: {FormatSpeed(e.Speed)} - 剩余: {e.EstimatedRemaining:mm\\:ss}");
-////};
-
-//var gdr = new GroupDownloadRequest(downloads.Select(x => new DownloadRequest {
-//    Url = x.Item3,
-//    Size = x.Item2,
-//    FileInfo = new(@"C:\Users\wxysd\Desktop\temp\" + x.Item1),
-//}));
-
-//gdr.ProgressChanged = e => Console.WriteLine(
-//    $"文件: {e.CompletedCount}/{e.TotalCount} - {FormatSize(e.DownloadedBytes)}/{FormatSize(e.TotalBytes)} - 进度: {e.Percentage:F2}% - 速度: {FormatSpeed(e.Speed)} - 剩余: {e.EstimatedRemaining:mm\\:ss}");
-
-//var rr = await downloader.DownloadManyAsync(gdr);
-
-//r.Stop();
-
-//Console.WriteLine("全部下载完成！");
-//Console.WriteLine($"共有 {rr.Failed.Count()} 个文件下载失败");
-//Console.WriteLine($"总耗时：{r.Elapsed:mm\\:ss}");
-//Console.ReadKey();
+var sw = Stopwatch.StartNew();
 
 #region 原版安装器
 
-
 var entry = (await VanillaInstaller.EnumerableMinecraftAsync())
-    .First(x => x.Id == "1.20.1");
+    .First(x => x.Id == "1.21.8");
 
 var installer = VanillaInstaller.Create("C:\\Users\\wxysd\\Desktop\\temp\\.minecraft", entry);
 installer.ProgressChanged += (_, arg) =>
-    Console.WriteLine($"{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{FormatSpeed(arg.Speed)} - {arg.Progress * 100:F2}%" : $"{arg.Progress * 100:F2}%")}");
+    Console.WriteLine($"{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{DefaultDownloader.FormatSize(arg.Speed)} - {arg.Progress * 100:F2}%" : $"{arg.Progress * 100:F2}%")}");
 
 var minecraft = await installer.InstallAsync();
 Console.WriteLine(minecraft.Id);
@@ -295,7 +259,7 @@ Console.WriteLine(minecraft.Id);
 
 #region 本地 Java 读取
 
-var asyncJavas = JavaUtil.EnumerableJavaAsync();
+//var asyncJavas = JavaUtil.EnumerableJavaAsync();
 //await foreach (var java in asyncJavas)
 //    Console.WriteLine(java);
 
@@ -350,42 +314,5 @@ var asyncJavas = JavaUtil.EnumerableJavaAsync();
 #endregion
 
 Console.WriteLine("Done!");
+Console.WriteLine($"总耗时：{sw.Elapsed:mm\\:ss}");
 Console.ReadKey();
-
-string FormatSpeed(double bytesPerSecond) {
-    if (bytesPerSecond < 0)
-        throw new ArgumentOutOfRangeException(nameof(bytesPerSecond), "速度不能为负数");
-
-    // 依次代表 B/s, KB/s, MB/s, GB/s, TB/s
-    string[] units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"];
-    double speed = bytesPerSecond;
-    int unitIndex = 0;
-
-    // 以 1024 为进率，不断向更高单位转换
-    while (speed >= 1024 && unitIndex < units.Length - 1) {
-        speed /= 1024;
-        unitIndex++;
-    }
-
-    // 保留两位小数
-    return $"{speed:F2} {units[unitIndex]}";
-}
-
-string FormatSize(double bytesPerSecond) {
-    if (bytesPerSecond < 0)
-        throw new ArgumentOutOfRangeException(nameof(bytesPerSecond), "速度不能为负数");
-
-    // 依次代表 B/s, KB/s, MB/s, GB/s, TB/s
-    string[] units = ["B", "KB", "MB", "GB", "TB"];
-    double speed = bytesPerSecond;
-    int unitIndex = 0;
-
-    // 以 1024 为进率，不断向更高单位转换
-    while (speed >= 1024 && unitIndex < units.Length - 1) {
-        speed /= 1024;
-        unitIndex++;
-    }
-
-    // 保留两位小数
-    return $"{speed:F2} {units[unitIndex]}";
-}

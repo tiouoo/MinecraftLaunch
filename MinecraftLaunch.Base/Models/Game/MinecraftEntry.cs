@@ -1,6 +1,7 @@
 ﻿using MinecraftLaunch.Base.Interfaces;
 using MinecraftLaunch.Base.Utilities;
 using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -443,6 +444,8 @@ public sealed class VanillaLibrary(string mavenName) : MinecraftLibrary(mavenNam
 public sealed class NeoForgeLibrary(string mavenName) : ForgeLibrary(mavenName);
 
 public sealed class LegacyForgeLibrary(string mavenName, string url) : MinecraftLibrary(mavenName), IDownloadDependency {
+    long IDownloadDependency.Size => throw new NotSupportedException();
+
     public string Url { get; init; } = url;
     public required bool ClientRequest { get; init; }
 }
@@ -450,14 +453,20 @@ public sealed class LegacyForgeLibrary(string mavenName, string url) : Minecraft
 public sealed class OptiFineLibrary(string mavenName) : MinecraftLibrary(mavenName);
 
 public sealed class FabricLibrary(string mavenName) : MinecraftLibrary(mavenName), IDownloadDependency {
+    long IDownloadDependency.Size => throw new NotSupportedException();
+
     public string Url => $"https://maven.fabricmc.net/{GetLibraryPath().Replace("\\", "/")}";
 }
 
 public class QuiltLibrary(string mavenName) : MinecraftLibrary(mavenName), IDownloadDependency {
+    long IDownloadDependency.Size => throw new NotSupportedException();
+
     public string Url => $"https://maven.quiltmc.org/repository/release/{GetLibraryPath().Replace("\\", "/")}";
 }
 
 public class DownloadableDependency(string mavenName, string url) : MinecraftLibrary(mavenName), IDownloadDependency {
+    long IDownloadDependency.Size => throw new NotSupportedException();
+
     public string Url { get; init; } = url;
 }
 

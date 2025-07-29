@@ -85,7 +85,7 @@ public sealed class MinecraftResourceDownloader {
         TotalCount = invalidDeps.Count;
         var downloadItems = invalidDeps
             .OfType<IDownloadDependency>()
-            .Select(dep => new DownloadRequest(dep.Url, dep.FullPath))
+            .Select(dep => new DownloadRequest(dep.Url, dep.FullPath, dep.Size))
             .ToList();
 
         var groupDownloadRequest = new GroupDownloadRequest(downloadItems);

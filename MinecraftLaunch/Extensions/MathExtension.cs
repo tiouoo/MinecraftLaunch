@@ -3,6 +3,8 @@
 namespace MinecraftLaunch.Extensions;
 
 public static class MathExtension {
+    public static double Normalize(this double value) => value / 100.0;
+
     /// <summary>
     /// Converts the download progress to a percentage.
     /// </summary>
@@ -20,6 +22,9 @@ public static class MathExtension {
     /// <param name="max">The maximum value of the range.</param>
     /// <returns>The progress value as a percentage within the specified range.</returns>
     public static double ToPercentage(this double progress, double mini, double max) {
+        if (progress > 1)
+            progress = progress.Normalize();
+
         return mini + (max - mini) * progress;
     }
 }
