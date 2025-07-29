@@ -89,7 +89,7 @@ public sealed class MinecraftResourceDownloader {
             .Select(dep => new DownloadRequest(dep.Url, dep.FullPath))
             .ToList();
 
-        await _downloader.DownloadManyAsync(downloadItems, cancellationToken);
+        await _downloader.DownloadManyAsync(new(downloadItems), cancellationToken);
     }
 
     #region Privates

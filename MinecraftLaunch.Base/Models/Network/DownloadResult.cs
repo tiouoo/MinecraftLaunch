@@ -1,5 +1,4 @@
 ﻿using MinecraftLaunch.Base.Enums;
-using System.Collections.Frozen;
 
 namespace MinecraftLaunch.Base.Models.Network;
 
@@ -14,5 +13,5 @@ public record DownloadResult {
 
 public record GroupDownloadResult {
     public required DownloadResultType Type { get; init; }
-    public required FrozenDictionary<DownloadRequest, DownloadResult> Failed { get; init; }
+    public required IEnumerable<DownloadRequest> Failed { get; init; }
 }

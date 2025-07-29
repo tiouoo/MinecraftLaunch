@@ -121,10 +121,10 @@ public sealed class QuiltInstaller : InstallerBase {
                 TaskStatus.Running, resourceDownloader.TotalCount,
                     Interlocked.Increment(ref count), x.Speed, true);
 
-        var groupDownloadResult = await resourceDownloader.VerifyAndDownloadDependenciesAsync(cancellationToken: cancellationToken);
+        await resourceDownloader.VerifyAndDownloadDependenciesAsync(cancellationToken: cancellationToken);
 
-        if (groupDownloadResult.Failed.Count > 0)
-            throw new InvalidOperationException("Some dependent files encountered errors during download");
+        //if (groupDownloadResult.Failed.Count > 0)
+        //    throw new InvalidOperationException("Some dependent files encountered errors during download");
     }
 
     #endregion

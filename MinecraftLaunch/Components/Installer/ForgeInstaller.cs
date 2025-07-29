@@ -223,7 +223,7 @@ public sealed class ForgeInstaller : InstallerBase {
 
         ReportProgress(InstallStep.DownloadLibraries, 0.70d, TaskStatus.Running, dependencies.Count, count, speed, true);
 
-        if (groupDownloadResult.Failed.Count > 0)
+        if (groupDownloadResult.Failed.Count() > 0)
             throw new InvalidOperationException("Some dependent files encountered errors during download");
 
     }

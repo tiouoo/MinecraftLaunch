@@ -21,6 +21,9 @@ public record GroupDownloadRequest {
     public DateTime StartTime { get; init; }
 
     public IEnumerable<DownloadRequest> Files { get; set; }
+    public Action<System.EventArgs> Completed { get; set; }
+    public Action<ResourceDownloadProgressChangedEventArgs> ProgressChanged { get; set; }
+
     public Action<double> DownloadSpeedChanged { get; set; }
     public Action<DownloadRequest, DownloadResult> SingleRequestCompleted { get; set; }
 

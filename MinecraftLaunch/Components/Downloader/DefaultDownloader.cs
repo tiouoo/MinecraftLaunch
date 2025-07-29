@@ -1,7 +1,9 @@
-﻿using MinecraftLaunch.Base.EventArgs;
+﻿using MinecraftLaunch.Base.Enums;
+using MinecraftLaunch.Base.EventArgs;
 using MinecraftLaunch.Base.Interfaces;
 using MinecraftLaunch.Base.Models.Network;
 using System.Buffers;
+using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
@@ -11,15 +13,21 @@ using System.Threading.Channels;
 namespace MinecraftLaunch.Components.Downloader;
 
 public sealed class DefaultDownloader : IDownloader {
+    private class DownloadStates {
+        public long TotalBytes;
+        public long DownloadedBytes;
+
+        public int TotalCount;
+        public int DownloadedCount;
+
+        public List<DownloadRequest> FailedRequests = [];
+    }
+
     private const int BufferSize = 128 * 1024;
     private const int MaxRetryPerSegment = 3;
     private const long SegmentThreshold = 5L * 1024 * 1024;
 
     private static HttpClient _httpClient;
-
-    private long _totalBytes;
-    private long _downloadedBytes;
-    private int _downloadedFiles;
 
     public event EventHandler<ResourceDownloadProgressChangedEventArgs> ProgressChanged;
 
@@ -41,68 +49,125 @@ public sealed class DefaultDownloader : IDownloader {
         };
     }
 
-    public async Task DownloadAsync(DownloadRequest request, CancellationToken cancellationToken = default) {
-        if (request.FileInfo.Directory is { Exists: false })
-            request.FileInfo.Directory?.Delete();
+    public async Task<DownloadResult> DownloadAsync(DownloadRequest request, CancellationToken cancellationToken = default) {
+        try {
+            if (request.FileInfo.Directory is { Exists: false })
+                request.FileInfo.Directory?.Delete();
 
-        using var response = await _httpClient
-            .GetAsync(request.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
-
-        response.EnsureSuccessStatusCode();
-        await using var src = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using var dst = new FileStream(request.FileInfo.FullName, FileMode.Create,
-            FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
-
-        await CopyStreamAsync(src, dst, cancellationToken).ConfigureAwait(false);
-        Interlocked.Increment(ref _downloadedFiles);
-    }
-
-    public async Task DownloadManyAsync(IEnumerable<DownloadRequest> requests, CancellationToken cancellationToken = default) {
-        await PreProbeSizesAsync(requests, cancellationToken).ConfigureAwait(false);
-
-        var totalCount = requests.Count();
-        var channel = Channel.CreateBounded<DownloadRequest>(new BoundedChannelOptions(totalCount) {
-            FullMode = BoundedChannelFullMode.Wait,
-            SingleWriter = true,
-            SingleReader = false
-        });
-
-        _ = ReportProgressAsync(totalCount, cancellationToken);
-        var workers = Enumerable.Range(0, DownloadManager.MaxThread).Select(_ => Task.Run(async () => {
-            await foreach (var req in channel.Reader.ReadAllAsync(cancellationToken)) {
-                try {
-                    if (req.Size >= SegmentThreshold && await GetIsSupportsRangeAsync(req, cancellationToken).ConfigureAwait(false))
-                        await DownloadWithSegmentsAsync(req, cancellationToken).ConfigureAwait(false);
-                    else
-                        await DownloadAsync(req, cancellationToken).ConfigureAwait(false);
-                } catch (Exception) { }
-            }
-        }));
-
-        foreach (var req in requests)
-            await channel.Writer.WriteAsync(req, cancellationToken)
+            using var response = await _httpClient
+                .GetAsync(request.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
 
-        channel.Writer.Complete();
-        await Task.WhenAll(workers)
-            .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            await using var src = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await using var dst = new FileStream(request.FileInfo.FullName, FileMode.Create,
+                FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
 
-        ProgressChanged?.Invoke(this, new ResourceDownloadProgressChangedEventArgs {
-            Speed = 0,
-            TotalBytes = _totalBytes,
-            DownloadedBytes = _totalBytes,
-            TotalCount = totalCount,
-            CompletedCount = totalCount,
-            EstimatedRemaining = TimeSpan.Zero
-        });
+            await CopyStreamAsync(src, dst, null, cancellationToken)
+                .ConfigureAwait(false);
 
-        _totalBytes = 0;
-        _downloadedBytes = 0;
-        _downloadedFiles = 0;
+        } catch (TaskCanceledException) {
+            return new(DownloadResultType.Cancelled);
+        } catch (Exception ex) {
+            return new(DownloadResultType.Failed) {
+                Exception = ex,
+            };
+        }
+
+        return new(DownloadResultType.Successful);
     }
 
-    private async Task CopyStreamAsync(Stream src, FileStream dst, CancellationToken cancellationToken) {
+    public async Task<GroupDownloadResult> DownloadManyAsync(GroupDownloadRequest requests, CancellationToken cancellationToken = default) {
+        var states = new DownloadStates {
+            TotalCount = requests.Files.Count()
+        };
+
+        try {
+            await PreProbeSizesAsync(requests.Files, states, cancellationToken)
+                .ConfigureAwait(false);
+
+            var channel = Channel.CreateBounded<DownloadRequest>(new BoundedChannelOptions(states.TotalCount) {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleWriter = true,
+                SingleReader = false
+            });
+
+            _ = ReportProgressAsync(states, requests, cancellationToken);
+            var workers = Enumerable.Range(0, DownloadManager.MaxThread).Select(_ => Task.Run(async () => {
+                await foreach (var req in channel.Reader.ReadAllAsync(cancellationToken)) {
+                    try {
+                        if (req.Size >= SegmentThreshold && await GetIsSupportsRangeAsync(req, cancellationToken).ConfigureAwait(false))
+                            await DownloadWithSegmentsAsync(req, states, cancellationToken).ConfigureAwait(false);
+                        else
+                            await DownloadAsync(req, states, cancellationToken).ConfigureAwait(false);
+                    } catch (Exception) {
+                        states.FailedRequests.Add(req);
+                    }
+
+                    Interlocked.Increment(ref states.DownloadedCount);
+                }
+            }));
+
+            foreach (var req in requests.Files)
+                await channel.Writer.WriteAsync(req, cancellationToken)
+                    .ConfigureAwait(false);
+
+            channel.Writer.Complete();
+            await Task.WhenAll(workers)
+                .ConfigureAwait(false);
+
+            requests.ProgressChanged?.Invoke(new ResourceDownloadProgressChangedEventArgs {
+                Speed = 0,
+                EstimatedRemaining = TimeSpan.Zero,
+                TotalCount = states.TotalCount,
+                TotalBytes = states.TotalBytes,
+                CompletedCount = states.TotalCount,
+                DownloadedBytes = states.TotalBytes
+            });
+
+            requests.Completed?.Invoke(EventArgs.Empty);
+        } catch (Exception) {
+            return new() {
+                Failed = states.FailedRequests,
+                Type = DownloadResultType.Successful,
+            };
+        }
+
+        return new() {
+            Failed = states.FailedRequests,
+            Type = DownloadResultType.Successful,
+        };
+    }
+
+    private static async Task<DownloadResult> DownloadAsync(DownloadRequest request, DownloadStates states, CancellationToken cancellationToken = default) {
+        try {
+            if (request.FileInfo.Directory is { Exists: false })
+                request.FileInfo.Directory?.Delete();
+
+            using var response = await _httpClient
+                .GetAsync(request.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+
+            response.EnsureSuccessStatusCode();
+            await using var src = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await using var dst = new FileStream(request.FileInfo.FullName, FileMode.Create,
+                FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
+
+            await CopyStreamAsync(src, dst, states, cancellationToken)
+                .ConfigureAwait(false);
+
+        } catch (TaskCanceledException) {
+            return new(DownloadResultType.Cancelled);
+        } catch (Exception ex) {
+            return new(DownloadResultType.Failed) {
+                Exception = ex,
+            };
+        }
+
+        return new(DownloadResultType.Successful);
+    }
+
+    private static async Task CopyStreamAsync(Stream src, FileStream dst, DownloadStates states, CancellationToken cancellationToken) {
         var pool = MemoryPool<byte>.Shared;
         using var owner = pool.Rent(BufferSize);
         var buffer = owner.Memory;
@@ -117,15 +182,16 @@ public sealed class DefaultDownloader : IDownloader {
             await dst.WriteAsync(buffer[..read], cancellationToken)
                 .ConfigureAwait(false);
 
-            Interlocked.Add(ref _downloadedBytes, read);
+            if (states is not null)
+                Interlocked.Add(ref states.DownloadedBytes, read);
         }
     }
 
-    private async Task PreProbeSizesAsync(IEnumerable<DownloadRequest> requests, CancellationToken cancellationToken) => await Parallel.ForEachAsync(requests, new ParallelOptions {
+    private static async Task PreProbeSizesAsync(IEnumerable<DownloadRequest> requests, DownloadStates states, CancellationToken cancellationToken) => await Parallel.ForEachAsync(requests, new ParallelOptions {
         CancellationToken = cancellationToken
     }, async (req, token) => {
         if (req.Size >= 0) {
-            Interlocked.Add(ref _totalBytes, req.Size);
+            Interlocked.Add(ref states.TotalBytes, req.Size);
             return;
         }
 
@@ -135,12 +201,12 @@ public sealed class DefaultDownloader : IDownloader {
 
             if (resp.Content.Headers.ContentLength is long len) {
                 req.Size = len;
-                Interlocked.Add(ref _totalBytes, len);
+                Interlocked.Add(ref states.TotalBytes, len);
             }
         } catch { }
     }).ConfigureAwait(false);
 
-    private async ValueTask DownloadWithSegmentsAsync(DownloadRequest req, CancellationToken ct) {
+    private static async ValueTask DownloadWithSegmentsAsync(DownloadRequest req, DownloadStates states, CancellationToken ct) {
         Directory.CreateDirectory(Path.GetDirectoryName(req.FileInfo.FullName)!);
         string path = req.FileInfo.FullName;
         long total = req.Size;
@@ -153,13 +219,12 @@ public sealed class DefaultDownloader : IDownloader {
         var ranges = CalculateRanges(total, DownloadManager.MaxFragmented);
         using var limiter = new SemaphoreSlim(DownloadManager.MaxFragmented);
         var tasks = ranges.Select(range =>
-            DownloadSegmentWithRetryAsync(req.Url, path, range.start, range.end, limiter, ct));
+            DownloadSegmentWithRetryAsync(req.Url, path, range.start, range.end, states, limiter, ct));
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
-        Interlocked.Increment(ref _downloadedFiles);
     }
 
-    private async ValueTask WriteSegmentAsync(string filePath, long start, Stream src, CancellationToken cancellationToken) {
+    private static async ValueTask WriteSegmentAsync(string filePath, long start, Stream src, DownloadStates states, CancellationToken cancellationToken) {
         byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
 
         try {
@@ -173,22 +238,22 @@ public sealed class DefaultDownloader : IDownloader {
                 await dst.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
                     .ConfigureAwait(false);
 
-                Interlocked.Add(ref _downloadedBytes, read);
+                Interlocked.Add(ref states.DownloadedBytes, read);
             }
         } finally {
             ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 
-    private async Task ReportProgressAsync(int totalCount, CancellationToken cancellationToken) {
+    private static async Task ReportProgressAsync(DownloadStates states, GroupDownloadRequest request, CancellationToken cancellationToken) {
         var sw = Stopwatch.StartNew();
         long prevBytes = 0;
         double prevTime = 0;
 
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false)) {
-            long nowBytes = Interlocked.Read(ref _downloadedBytes);
-            if (_totalBytes == nowBytes && _totalBytes != 0)
+            long nowBytes = Interlocked.Read(ref states.DownloadedBytes);
+            if (states.TotalBytes == nowBytes && states.TotalBytes != 0)
                 break;
 
             double nowTime = sw.Elapsed.TotalSeconds;
@@ -197,24 +262,25 @@ public sealed class DefaultDownloader : IDownloader {
             long speed = deltaT > 0 ? (long)(deltaB / deltaT) : 0;
             var eta = speed > 0
                 ? TimeSpan.FromSeconds(
-                    (Interlocked.Read(ref _totalBytes) - nowBytes) / (double)speed)
+                    (Interlocked.Read(ref states.TotalBytes) - nowBytes) / (double)speed)
                 : TimeSpan.Zero;
 
             prevTime = nowTime;
             prevBytes = nowBytes;
 
-            ProgressChanged?.Invoke(this, new ResourceDownloadProgressChangedEventArgs {
+            request.ProgressChanged?.Invoke(new ResourceDownloadProgressChangedEventArgs {
                 Speed = speed,
                 EstimatedRemaining = eta,
-                TotalBytes = _totalBytes,
+                TotalBytes = states.TotalBytes,
                 DownloadedBytes = nowBytes,
-                TotalCount = totalCount,
-                CompletedCount = _downloadedFiles
+                TotalCount = states.TotalCount,
+                CompletedCount = states.DownloadedCount
             });
         }
     }
 
-    private async Task DownloadSegmentWithRetryAsync(string url, string filePath, long start, long end, SemaphoreSlim limiter, CancellationToken cancellationToken) {
+    private static async Task DownloadSegmentWithRetryAsync(string url, string filePath, long start, long end,
+        DownloadStates states, SemaphoreSlim limiter, CancellationToken cancellationToken) {
         const int TimeoutMinutes = 10;
 
         for (int attempt = 1; attempt <= MaxRetryPerSegment; attempt++) {
@@ -237,7 +303,7 @@ public sealed class DefaultDownloader : IDownloader {
                     .ReadAsStreamAsync(cancellationToken)
                     .ConfigureAwait(false);
 
-                await WriteSegmentAsync(filePath, start, src, cancellationToken)
+                await WriteSegmentAsync(filePath, start, src, states, cancellationToken)
                     .ConfigureAwait(false);
 
                 return;

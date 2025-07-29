@@ -23,20 +23,26 @@ var downloads = node.Select(x => (Guid.NewGuid().ToString("N") + Path.GetExtensi
 
 var downloader = new DefaultDownloader();
 
-downloader.ProgressChanged += (s, e) => {
-    Console.WriteLine(
-        $"文件: {e.CompletedCount}/{e.TotalCount} - {FormatSize(e.DownloadedBytes)}/{FormatSize(e.TotalBytes)} - 进度: {e.Percentage:F2}% - 速度: {FormatSpeed(e.Speed)} - 剩余: {e.EstimatedRemaining:mm\\:ss}");
-};
+//downloader.ProgressChanged += (s, e) => {
+//    Console.WriteLine(
+//        $"文件: {e.CompletedCount}/{e.TotalCount} - {FormatSize(e.DownloadedBytes)}/{FormatSize(e.TotalBytes)} - 进度: {e.Percentage:F2}% - 速度: {FormatSpeed(e.Speed)} - 剩余: {e.EstimatedRemaining:mm\\:ss}");
+//};
 
-await downloader.DownloadManyAsync(downloads.Select(x => new DownloadRequest {
+var gdr = new GroupDownloadRequest(downloads.Select(x => new DownloadRequest {
     Url = x.Item3,
     Size = x.Item2,
-    FileInfo = new(@"C:\Users\wxysd\Desktop\temp\" + x.Item1)
+    FileInfo = new(@"C:\Users\wxysd\Desktop\temp\" + x.Item1),
 }));
+
+gdr.ProgressChanged = e => Console.WriteLine(
+    $"文件: {e.CompletedCount}/{e.TotalCount} - {FormatSize(e.DownloadedBytes)}/{FormatSize(e.TotalBytes)} - 进度: {e.Percentage:F2}% - 速度: {FormatSpeed(e.Speed)} - 剩余: {e.EstimatedRemaining:mm\\:ss}");
+
+var rr = await downloader.DownloadManyAsync(gdr);
 
 r.Stop();
 
 Console.WriteLine("全部下载完成！");
+Console.WriteLine($"共有 {rr.Failed.Count()} 个文件下载失败");
 Console.WriteLine($"总耗时：{r.Elapsed:mm\\:ss}");
 Console.ReadKey();
 

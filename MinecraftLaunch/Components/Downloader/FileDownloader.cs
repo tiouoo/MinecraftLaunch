@@ -14,10 +14,9 @@ namespace MinecraftLaunch.Components.Downloader;
 /// <summary>
 /// 文件下载器，支持单文件和批量文件下载，支持多线程分块下载。
 /// </summary>
-file sealed class FileDownloader
+public sealed class FileDownloader
 {
-    private class DownloadStates
-    {
+    private class DownloadStates {
         public required string Url { get; init; }
         public required string LocalPath { get; init; }
         public long? TotalBytes { get; set; }
