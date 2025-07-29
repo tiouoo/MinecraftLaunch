@@ -85,6 +85,13 @@ public sealed class DefaultDownloader : IDownloader {
         };
 
         try {
+            if (states.TotalCount is 0) {
+                return new() {
+                    Failed = states.FailedRequests,
+                    Type = DownloadResultType.Successful,
+                };
+            }
+
             await PreProbeSizesAsync(requests.Files, states, cancellationToken)
                 .ConfigureAwait(false);
 
