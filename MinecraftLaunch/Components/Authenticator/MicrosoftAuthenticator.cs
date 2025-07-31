@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Web;
 
 namespace MinecraftLaunch.Components.Authenticator;
 
@@ -70,7 +71,7 @@ public sealed class MicrosoftAuthenticator {
 
         var parameters = new Dictionary<string, string> {
             ["client_id"] = _clientId,
-            ["tenant"] =  "/consumers",
+            ["tenant"] = "/consumers",
             ["scope"] = string.Join(" ", _scopes)
         };
 
@@ -82,7 +83,6 @@ public sealed class MicrosoftAuthenticator {
         deviceCode.Invoke(codeResponse);
 
         //Polling
-        HttpClient client = new();
         int timeout = codeResponse.ExpiresIn;
         OAuth2TokenResponse tokenResponse = default!;
 
@@ -95,12 +95,15 @@ public sealed class MicrosoftAuthenticator {
         do {
             cancellationToken.ThrowIfCancellationRequested();
 
-            //好他妈猎奇，这段用 Flurl 会直接返回 400
-            using var responseMessage = await client.PostAsync(
-                "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
-                new StringContent(requestParams, Encoding.UTF8, "application/x-www-form-urlencoded"), cancellationToken);
+            var response = await HttpUtil.Request("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+                .OnError(x => x.ExceptionHandled = true)
+                .PostUrlEncodedAsync(new Dictionary<string, string> {
+                    ["grant_type"] = "urn:ietf:params:oauth:grant-type:device_code",
+                    ["client_id"] = _clientId,
+                    ["device_code"] = codeResponse.DeviceCode
+                }, HttpCompletionOption.ResponseContentRead, cancellationToken);
 
-            var tokenJson = await responseMessage.Content.ReadAsStringAsync(cancellationToken);
+            var tokenJson = await response.GetStringAsync();
             var tempTokenResponse = tokenJson.AsNode();
 
             if (tempTokenResponse["error"] == null) {
