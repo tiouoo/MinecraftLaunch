@@ -17,6 +17,11 @@ public class InstallProgressChangedEventArgs : System.EventArgs {
     public string ProgressStatus { get; set; }
 }
 
+public class InstallComplatedEventArgs : System.EventArgs {
+    public bool IsSuccessful { get; set; }
+    public Exception Exception { get; set; }
+}
+
 public sealed class CompositeInstallProgressChangedEventArgs : InstallProgressChangedEventArgs {
     public InstallStep PrimaryStepName { get; set; }
 }

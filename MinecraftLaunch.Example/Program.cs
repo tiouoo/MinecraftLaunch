@@ -93,21 +93,22 @@ var sw = Stopwatch.StartNew();
 
 #region 复合安装器
 
-//var mc = (await VanillaInstaller.EnumerableMinecraftAsync())
-//    .First(x => x.McVersion.Equals("1.12.2"));
+var mcId = "1.21.8";
+var mc = (await VanillaInstaller.EnumerableMinecraftAsync())
+    .First(x => x.McVersion.Equals(mcId));
 
-//var forgeEntry = (await ForgeInstaller.EnumerableForgeAsync("1.12.2"))
-//    .First();
+var ofEntry = (await ForgeInstaller.EnumerableForgeAsync(mcId))
+    .First();
 
-//var ofEntry = (await OptifineInstaller.EnumerableOptifineAsync("1.12.2"))
-//    .First();
+var installer5 = CompositeInstaller.Create([mc, ofEntry], "C:\\Users\\wxysd\\Desktop\\temp\\.minecraft", "C:\\Program Files\\Microsoft\\jdk-21.0.7.6-hotspot\\bin\\javaw.exe", "ForgeMC_Optifne");
+installer5.ProgressChanged += (_, arg) =>
+    Console.WriteLine($"{(arg.PrimaryStepName is InstallStep.Undefined ? "" : $"{arg.PrimaryStepName} - ")}{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{DefaultDownloader.FormatSize(arg.Speed, true)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
 
-//var installer5 = CompositeInstaller.Create([mc, forgeEntry, ofEntry], "C:\\Users\\wxysd\\Desktop\\temp\\.minecraft", "C:\\Program Files\\Java\\latest\\jre-1.8\\bin\\java.exe", "ForgeMC_Optifne");
-//installer5.ProgressChanged += (_, arg) =>
-//    Console.WriteLine($"{(arg.PrimaryStepName is InstallStep.Undefined ? "" : $"{arg.PrimaryStepName} - ")}{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{DefaultDownloader.FormatSize(arg.Speed, true)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
+installer5.Completed += (_, arg) =>
+    Console.WriteLine(arg.IsSuccessful ? "安装成功" : $"安装失败 - {arg.Exception}");
 
-//var minecraft5 = await installer5.InstallAsync();
-//Console.WriteLine(minecraft5.Id);
+var minecraft5 = await installer5.InstallAsync();
+Console.WriteLine(minecraft5.Id);
 
 #endregion
 

@@ -46,11 +46,13 @@ public sealed class VanillaInstaller : InstallerBase {
             entry = minecraft;
         } catch (OperationCanceledException) {
             ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Canceled, 1, 1);
-            ReportCompleted();
+            ReportCompleted(true);
+        } catch (Exception ex) {
+            ReportCompleted(false, ex);
         }
 
         ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
-        ReportCompleted();
+        ReportCompleted(true);
         return entry ?? throw new ArgumentNullException(nameof(entry), "Unexpected null reference to variable"); ;
     }
 

@@ -60,7 +60,7 @@ public sealed class OptifineInstaller : InstallerBase {
                 CopyToMods(optifinePackageFile);
 
                 ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
-                ReportCompleted();
+                ReportCompleted(true);
 
                 return modifiedMinecraft;
             }
@@ -72,10 +72,10 @@ public sealed class OptifineInstaller : InstallerBase {
             await RunInstallProcessorAsync(optifinePackageFile.FullName, inheritedEntry, cancellationToken);
 
             ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
-            ReportCompleted();
-        } catch (Exception) {
+            ReportCompleted(true);
+        } catch (Exception ex) {
             ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Canceled, 1, 1);
-            ReportCompleted();
+            ReportCompleted(false, ex);
         }
 
         return entry ?? throw new ArgumentNullException(nameof(entry), "Unexpected null reference to variable");

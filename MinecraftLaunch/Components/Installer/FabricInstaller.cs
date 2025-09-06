@@ -44,13 +44,13 @@ public sealed class FabricInstaller : InstallerBase {
             var jsonFile = await DownloadVersionJsonAsync(inheritedEntry, cancellationToken);
             entry = ParseModifiedMinecraft(jsonFile, cancellationToken);
             await CompleteFabricLibrariesAsync(entry, cancellationToken);
-        } catch (Exception) {
+        } catch (Exception ex) {
             ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Canceled, 1, 1);
-            ReportCompleted();
+            ReportCompleted(false, ex);
         }
 
         ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
-        ReportCompleted();
+        ReportCompleted(true);
         return entry ?? throw new ArgumentNullException(nameof(entry), "Unexpected null reference to variable");
     }
 

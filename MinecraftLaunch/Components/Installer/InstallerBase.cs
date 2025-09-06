@@ -8,13 +8,16 @@ namespace MinecraftLaunch.Components.Installer;
 public abstract class InstallerBase : IInstaller {
     public abstract string MinecraftFolder { get; init; }
 
-    public event EventHandler<EventArgs> Completed;
+    public event EventHandler<InstallComplatedEventArgs> Completed;
     public event EventHandler<InstallProgressChangedEventArgs> ProgressChanged;
 
     public abstract Task<MinecraftEntry> InstallAsync(CancellationToken cancellationToken = default);
 
-    internal void ReportCompleted() {
-        Completed?.Invoke(this, EventArgs.Empty);
+    internal void ReportCompleted(bool isSuccessful, Exception exception = default) {
+        Completed?.Invoke(this, new InstallComplatedEventArgs {
+            Exception = exception,
+            IsSuccessful = isSuccessful
+        });
     }
 
     protected internal virtual void ReportProgress(InstallStep step, double progress, TaskStatus status, int totalCount, int finshedCount, double speed = -1d, bool isSupportSpeed = false) {

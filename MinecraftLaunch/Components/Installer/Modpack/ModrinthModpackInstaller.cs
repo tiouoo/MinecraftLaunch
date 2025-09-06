@@ -58,12 +58,12 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
 
             await DownloadModsAsync(downloadRequests, cancellationToken);
             await ExtractModpackAsync(cancellationToken);
-        } catch (Exception) {
-
+        } catch (Exception ex) {
+            ReportCompleted(false, ex);
         }
 
         ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
-        ReportCompleted();
+        ReportCompleted(true);
 
         return Minecraft;
     }

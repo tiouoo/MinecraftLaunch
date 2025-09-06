@@ -55,10 +55,10 @@ public sealed class ForgeInstaller : InstallerBase {
             }
 
             ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
-            ReportCompleted();
-        } catch (Exception) {
+            ReportCompleted(true);
+        } catch (Exception ex) {
             ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Canceled, 1, 1);
-            ReportCompleted();
+            ReportCompleted(false, ex);
         }
 
         return entry ?? throw new ArgumentNullException(nameof(entry), "Unexpected null reference to variable");
