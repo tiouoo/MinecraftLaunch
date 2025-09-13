@@ -11,8 +11,9 @@ public static class InitializeHelper {
         settingsProvider(componentSettings);
 
         DownloadManager.MaxThread = componentSettings.MaxThread;
-        DownloadManager.MaxFragmented = componentSettings.MaxFragmented;
+        DownloadManager.MaxFragment = componentSettings.MaxFragment;
         DownloadManager.IsEnableMirror = componentSettings.IsEnableMirror;
+        DownloadManager.IsEnableFragment = componentSettings.IsEnableFragment;
         DownloadManager.CurseforgeApiKey = componentSettings.CurseForgeApiKey;
 
         HttpUtil.FlurlClient = new FlurlClient {

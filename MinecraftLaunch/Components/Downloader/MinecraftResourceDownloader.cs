@@ -5,6 +5,7 @@ using MinecraftLaunch.Base.Models.Game;
 using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Extensions;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Security.Cryptography;
 
 namespace MinecraftLaunch.Components.Downloader;
@@ -88,6 +89,8 @@ public sealed class MinecraftResourceDownloader {
             .Select(dep => new DownloadRequest(dep.Url, dep.FullPath, dep.Size ?? 0))
             .ToList();
 
+        Debug.WriteLine(_dependencies.Where(x => x is FabricLibrary).Count());
+
         var groupDownloadRequest = new GroupDownloadRequest(downloadItems);
         groupDownloadRequest.ProgressChanged += args
             => ProgressChanged?.Invoke(this, args);
@@ -99,6 +102,7 @@ public sealed class MinecraftResourceDownloader {
 
     private static bool VerifyDependency(MinecraftDependency dep, CancellationToken cancellationToken = default) {
         cancellationToken.ThrowIfCancellationRequested();
+        Debug.WriteLineIf(dep is FabricLibrary, dep.FullPath);
         if (!File.Exists(dep.FullPath))
             return false;
 

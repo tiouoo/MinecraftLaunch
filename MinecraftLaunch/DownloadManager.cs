@@ -7,8 +7,11 @@ public static class DownloadManager {
     public static string CurseforgeApiKey { get; set; } = string.Empty;
 
     public static int MaxThread { get; set; } = 64;
-    public static int MaxFragmented { get; set; } = 128;
+    public static int MaxFragment { get; set; } = 128;
+    public static int MaxRetryCount { get; set; } = 8;
+
     public static bool IsEnableMirror { get; set; }
+    public static bool IsEnableFragment { get; set; } = true;
 
     public static readonly IDownloadMirror BmclApi = new BmclApiSource();
 }

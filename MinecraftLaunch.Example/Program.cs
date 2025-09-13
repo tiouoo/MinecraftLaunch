@@ -1,17 +1,18 @@
 ﻿using MinecraftLaunch;
 using MinecraftLaunch.Base.Enums;
-using MinecraftLaunch.Components.Authenticator;
+using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Components.Downloader;
 using MinecraftLaunch.Components.Installer;
-using MinecraftLaunch.Components.Installer.Modpack;
-using MinecraftLaunch.Components.Parser;
 using System.Diagnostics;
 
 InitializeHelper.Initialize(settings => {
     settings.MaxThread = 256;
-    settings.MaxFragmented = 128;
+    settings.MaxFragment = 128;
+    settings.MaxRetryCount = 4;
     settings.IsEnableMirror = false;
+    settings.IsEnableFragment = false;
     settings.CurseForgeApiKey = "Your Curseforge API";
+    settings.UserAgent = "MLTest/1.0";
 });
 
 var sw = Stopwatch.StartNew();
@@ -97,10 +98,10 @@ var mcId = "1.21.8";
 var mc = (await VanillaInstaller.EnumerableMinecraftAsync())
     .First(x => x.McVersion.Equals(mcId));
 
-var ofEntry = (await ForgeInstaller.EnumerableForgeAsync(mcId))
+var ofEntry = (await OptifineInstaller.EnumerableOptifineAsync(mcId))
     .First();
 
-var installer5 = CompositeInstaller.Create([mc, ofEntry], "C:\\Users\\wxysd\\Desktop\\temp\\.minecraft", "C:\\Program Files\\Microsoft\\jdk-21.0.7.6-hotspot\\bin\\javaw.exe", "ForgeMC_Optifne");
+var installer5 = CompositeInstaller.Create([mc, ofEntry], "C:\\Users\\wxysd\\Desktop\\temp\\.minecraft", "C:\\Program Files\\Microsoft\\jdk-21.0.7.6-hotspot\\bin\\javaw.exe", "OptifineMC");
 installer5.ProgressChanged += (_, arg) =>
     Console.WriteLine($"{(arg.PrimaryStepName is InstallStep.Undefined ? "" : $"{arg.PrimaryStepName} - ")}{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{DefaultDownloader.FormatSize(arg.Speed, true)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
 
