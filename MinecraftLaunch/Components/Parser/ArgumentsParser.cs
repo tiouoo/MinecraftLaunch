@@ -2,6 +2,7 @@
 using MinecraftLaunch.Base.Models.Game;
 using MinecraftLaunch.Base.Utilities;
 using MinecraftLaunch.Extensions;
+using MinecraftLaunch.Utilities;
 using System.Collections.Immutable;
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
@@ -83,7 +84,7 @@ public sealed class ArgumentsParser {
         var versionJsonNode = JsonNode.Parse(File.ReadAllText(MinecraftEntry.ClientJsonPath))
             ?? throw new JsonException("Failed to parse version.json");
 
-        var entity = versionJsonNode.Deserialize(MinecraftJsonEntryContext.Default.MinecraftJsonEntry)
+        var entity = versionJsonNode.Deserialize(new MinecraftJsonEntryContext(JsonSerializerUtil.GetDefaultOptions()).MinecraftJsonEntry)
             ?? throw new JsonException("Failed to parse version.json");
 
         var vmParameters = JvmArgumentParser.Parse(entity);
