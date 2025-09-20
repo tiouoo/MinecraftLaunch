@@ -98,6 +98,10 @@ public sealed class ArgumentsParser {
             vmParameters = JvmArgumentParser
                 .Parse(inheritedVersionEntry)
                 .Union(vmParameters);
+
+            gameParameters = GameArgumentParser
+                .Parse(inheritedVersionEntry)
+                .Union(gameParameters);
         }
 
         var classPath = string.Join(Path.PathSeparator, _libraries.Select(lib => lib.FullPath));
@@ -171,8 +175,7 @@ public sealed class ArgumentsParser {
 
         foreach (var arg in gameParameters) yield return arg.ReplaceFromDictionary(gameParametersReplace);
 
-        if (LaunchConfig.Width != 0 && LaunchConfig.Height != 0)
-        {
+        if (LaunchConfig.Width != 0 && LaunchConfig.Height != 0) {
             yield return $"--width {LaunchConfig.Width}";
             yield return $"--height {LaunchConfig.Height}";
         }
@@ -201,18 +204,14 @@ internal sealed class GameArgumentParser {
     /// 解析参数
     /// </summary>
     /// <returns></returns>
-    public static IEnumerable<string> Parse(MinecraftJsonEntry gameJsonEntry)
-    {
-        if (!string.IsNullOrEmpty(gameJsonEntry.MinecraftArguments))
-        {
-            foreach (var arg in gameJsonEntry.MinecraftArguments.Split(' ').GroupArguments())
-            {
+    public static IEnumerable<string> Parse(MinecraftJsonEntry gameJsonEntry) {
+        if (!string.IsNullOrEmpty(gameJsonEntry.MinecraftArguments)) {
+            foreach (var arg in gameJsonEntry.MinecraftArguments.Split(' ').GroupArguments()) {
                 yield return arg;
             }
         }
 
-        if (gameJsonEntry.Arguments?.GetEnumerable("game") is null)
-        {
+        if (gameJsonEntry.Arguments?.GetEnumerable("game") is null) {
             yield break;
         }
 
@@ -222,9 +221,7 @@ internal sealed class GameArgumentParser {
             .GroupArguments();
 
         foreach (var item in game.ToImmutableArray())
-        {
             yield return item;
-        }
     }
 }
 
@@ -240,7 +237,6 @@ internal sealed class JvmArgumentParser {
             yield return "-Dminecraft.launcher.brand=${launcher_name}";
             yield return "-Dminecraft.launcher.version=${launcher_version}";
             yield return "-cp ${classpath}";
-
             yield break;
         }
 
@@ -248,22 +244,19 @@ internal sealed class JvmArgumentParser {
             if (arg.GetValueKind() is JsonValueKind.String) {
                 var argValue = arg.GetString().Trim();
 
-                if (argValue.Contains(' ')) {
+                if (argValue.Contains(' '))
                     jvm.AddRange(argValue.Split(' '));
-                } else {
+                else
                     jvm.Add(argValue);
-                }
             }
         }
 
-        foreach (var arg in jvm.GroupArguments()) {
+        foreach (var arg in jvm.GroupArguments())
             yield return arg;
-        }
 
         //有些沟槽的带加载器的版本的 Json 里可能没有 -cp 键，加一个判断以防启动失败
-        if (!jvm.Contains("-cp")) {
+        if (!jvm.Contains("-cp"))
             yield return "-cp ${classpath}";
-        }
     }
 
     /// <summary>
