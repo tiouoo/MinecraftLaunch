@@ -105,22 +105,22 @@ var sw = Stopwatch.StartNew();
 
 #region 复合安装器
 
-var mcId = "1.21.8";
-var mc = (await VanillaInstaller.EnumerableMinecraftAsync())
-    .First(x => x.McVersion.Equals(mcId));
+//var mcId = "1.21.8";
+//var mc = (await VanillaInstaller.EnumerableMinecraftAsync())
+//    .First(x => x.McVersion.Equals(mcId));
 
-var forgeEntry = (await ForgeInstaller.EnumerableForgeAsync(mcId))
-    .First();
+//var forgeEntry = (await ForgeInstaller.EnumerableForgeAsync(mcId))
+//    .First();
 
-var installer5 = CompositeInstaller.Create([mc, forgeEntry], "C:\\Users\\wxysd\\Desktop\\temp\\.minecraft", "C:\\Program Files\\Microsoft\\jdk-21.0.7.6-hotspot\\bin\\javaw.exe", "ForgeMC");
-installer5.ProgressChanged += (_, arg) =>
-    Console.WriteLine($"{(arg.PrimaryStepName is InstallStep.Undefined ? "" : $"{arg.PrimaryStepName} - ")}{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{DefaultDownloader.FormatSize(arg.Speed, true)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
+//var installer5 = CompositeInstaller.Create([mc, forgeEntry], "C:\\Users\\wxysd\\Desktop\\temp\\.minecraft", "C:\\Program Files\\Microsoft\\jdk-21.0.7.6-hotspot\\bin\\javaw.exe", "ForgeMC");
+//installer5.ProgressChanged += (_, arg) =>
+//    Console.WriteLine($"{(arg.PrimaryStepName is InstallStep.Undefined ? "" : $"{arg.PrimaryStepName} - ")}{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{DefaultDownloader.FormatSize(arg.Speed, true)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
 
-installer5.Completed += (_, arg) =>
-    Console.WriteLine(arg.IsSuccessful ? "安装成功" : $"安装失败 - {arg.Exception}");
+//installer5.Completed += (_, arg) =>
+//    Console.WriteLine(arg.IsSuccessful ? "安装成功" : $"安装失败 - {arg.Exception}");
 
-var minecraft5 = await installer5.InstallAsync();
-Console.WriteLine(minecraft5.Id);
+//var minecraft5 = await installer5.InstallAsync();
+//Console.WriteLine(minecraft5.Id);
 
 #endregion
 
@@ -322,7 +322,7 @@ MinecraftRunner runner = new(new LaunchConfig {
 var process = await runner.RunAsync(minecraft);
 
 process.Started += (_, _) => Console.WriteLine("Launch successful!");
-process.OutputLogReceived += (_, arg) => Console.WriteLine(arg.Data);
+process.OutputLogReceived += (_, arg) => Console.WriteLine(string.IsNullOrWhiteSpace(arg.Data.Source) ? $"{arg.Data.Log}" : $"[{arg.Data.Time}] [{arg.Data.Source}/{arg.Data.LogLevel.ToString().ToUpper()}] {arg.Data.Log}");
 process.Exited += (_, arg) => {
     Console.WriteLine();
     Console.WriteLine(string.Join(Environment.NewLine, process.ArgumentList));

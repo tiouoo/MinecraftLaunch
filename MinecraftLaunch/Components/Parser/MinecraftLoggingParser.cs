@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace MinecraftLaunch.Components.Parser;
 
 public static partial class MinecraftLoggingParser {
-    public static MinecraftLogEntry Parse(string log) => new MinecraftLogEntry {
+    public static MinecraftLogEntry Parse(string log) => new() {
         SourceText = log,
         Log = GetLog(log),
         Source = GetSource(log),
@@ -53,12 +53,19 @@ public static partial class MinecraftLoggingParser {
     /// <param name="log"></param>
     /// <returns></returns>
     public static string GetSource(string log) {
-        var content = SourceRegex().Match(log)
-            .Value.Split('/')
+        var content = SourceRegex()
+            .Match(log)
+            .Value
+            .Split('/')
             .FirstOrDefault();
 
-        return content?.Replace($"{TimeRegex().Match(log).Value} [",
-            string.Empty)!;
+        if (string.IsNullOrEmpty(content))
+            return string.Empty;
+
+        var time = TimeFullRegex().Match(log).Value;
+        var result = content.Replace($"{time} [", string.Empty);
+
+        return result;
     }
 
     /// <summary>
@@ -83,6 +90,9 @@ public static partial class MinecraftLoggingParser {
 
     [GeneratedRegex("(20|21|22|23|[0-1]\\d):[0-5]\\d:[0-5]\\d")]
     private static partial Regex TimeRegex();
+
+    [GeneratedRegex("\\[(20|21|22|23|[0-1]\\d):[0-5]\\d:[0-5]\\d\\]")]
+    private static partial Regex TimeFullRegex();
 
     [GeneratedRegex("(at .*)")]
     private static partial Regex StackTraceRegex();
