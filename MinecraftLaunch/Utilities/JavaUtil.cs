@@ -53,8 +53,9 @@ public static partial class JavaUtil {
 
     public static async IAsyncEnumerable<JavaEntry> EnumerableJavaAsync([EnumeratorCancellation] CancellationToken cancellationToken = default) {
         if (EnvironmentUtil.IsWindow) {
-            foreach (var java in GetJavasForWindows().AsParallel()) {
-                yield return await GetJavaInfoAsync(java, cancellationToken);
+            foreach (var java in GetJavasForWindows()) {
+                if (File.Exists(java))
+                    yield return await GetJavaInfoAsync(java, cancellationToken);
             }
 
             yield break;
@@ -155,7 +156,8 @@ public static partial class JavaUtil {
             }
 
             return result;
-        };
+        }
+        ;
 
         using var reg = Registry.LocalMachine.OpenSubKey("SOFTWARE");
 
