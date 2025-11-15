@@ -1,20 +1,10 @@
-﻿using Flurl;
-using Flurl.Http;
 using MinecraftLaunch;
-using MinecraftLaunch.Base.Enums;
 using MinecraftLaunch.Base.Models.Game;
-using MinecraftLaunch.Base.Models.Network;
-using MinecraftLaunch.Components.Authenticator;
-using MinecraftLaunch.Components.Downloader;
-using MinecraftLaunch.Components.Installer;
-using MinecraftLaunch.Components.Logging;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
-using MinecraftLaunch.Launch;
 using MinecraftLaunch.Utilities;
-using System;
 using System.Diagnostics;
-using System.Threading;
+using System.Text.Json.Serialization;
 
 InitializeHelper.Initialize(settings => {
     settings.MaxThread = 256;
@@ -143,12 +133,24 @@ var sw = Stopwatch.StartNew();
 
 #region Modrinth 整合包安装器
 
-//var modpackEntry1 = ModrinthModpackInstaller.ParseModpackInstallEntry(@"C:\Users\wxysd\Desktop\temp\Zombie Invade 100 Days 2.1.mrpack");
+//var modpackEntry1 = ModrinthModpackInstaller.ParseModpackInstallEntry(@"C:\Users\wxysd\Desktop\teyvat.mrpack");
 //var installerEntry1 = await ModrinthModpackInstaller.ParseModLoaderEntryAsync(modpackEntry1);
 
-//var mdModpackInstaller = ModrinthModpackInstaller.Create("C:\\Users\\wxysd\\Desktop\\temp\\.minecraft",
-//    @"C:\Users\wxysd\Desktop\temp\Zombie Invade 100 Days 2.1.mrpack", 
-//    modpackEntry1, new MinecraftParser("C:\\Users\\wxysd\\Desktop\\temp\\.minecraft").GetMinecraft("Zombie Invade 100 Days"));
+//var mc = (await VanillaInstaller.EnumerableMinecraftAsync())
+//    .First(x => x.McVersion.Equals(modpackEntry1.McVersion));
+
+//var installer5 = CompositeInstaller.Create([mc, installerEntry1], "C:\\Users\\wxysd\\Desktop\\temp\\.minecraft", "C:\\Program Files\\Microsoft\\jdk-21.0.7.6-hotspot\\bin\\javaw.exe", "teyvat");
+//installer5.ProgressChanged += (_, arg) =>
+//    Console.WriteLine($"{(arg.PrimaryStepName is InstallStep.Undefined ? "" : $"{arg.PrimaryStepName} - ")}{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{DefaultDownloader.FormatSize(arg.Speed, true)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
+
+//installer5.Completed += (_, arg) =>
+//    Console.WriteLine(arg.IsSuccessful ? "安装成功" : $"安装失败 - {arg.Exception}");
+
+//var minecraft5 = await installer5.InstallAsync();
+
+//var mdModpackInstaller = ModrinthModpackInstaller.Create(@"C:\Users\wxysd\Desktop\temp\.minecraft",
+//    @"C:\Users\wxysd\Desktop\teyvat.mrpack",
+//    modpackEntry1, minecraft5);
 
 //mdModpackInstaller.ProgressChanged += (_, arg) =>
 //    Console.WriteLine($"{arg.StepName} - {arg.FinishedStepTaskCount}/{arg.TotalStepTaskCount} - {(arg.IsStepSupportSpeed ? $"{DefaultDownloader.FormatSize(arg.Speed, true)} - {arg.Progress * 100:0.00}%" : $"{arg.Progress * 100:0.00}%")}");
@@ -310,23 +312,23 @@ var asyncJavas = JavaUtil.EnumerableJavaAsync();
 
 #region 启动
 
-var minecraft = minecraftParser.GetMinecraft("ForgeMC");
-MinecraftRunner runner = new(new LaunchConfig {
-    Account = new OfflineAuthenticator().Authenticate("Yang114"),
-    MaxMemorySize = 2048,
-    MinMemorySize = 512,
-    LauncherName = "MinecraftLaunch",
-    JavaPath = minecraft.GetAppropriateJava(await asyncJavas.ToListAsync()),
-}, minecraftParser);
+//var minecraft = minecraftParser.GetMinecraft("ForgeMC");
+//MinecraftRunner runner = new(new LaunchConfig {
+//    Account = new OfflineAuthenticator().Authenticate("Yang114"),
+//    MaxMemorySize = 2048,
+//    MinMemorySize = 512,
+//    LauncherName = "MinecraftLaunch",
+//    JavaPath = minecraft.GetAppropriateJava(await asyncJavas.ToListAsync()),
+//}, minecraftParser);
 
-var process = await runner.RunAsync(minecraft);
+//var process = await runner.RunAsync(minecraft6);
 
-process.Started += (_, _) => Console.WriteLine("Launch successful!");
-process.OutputLogReceived += (_, arg) => Console.WriteLine(string.IsNullOrWhiteSpace(arg.Data.Source) ? $"{arg.Data.Log}" : $"[{arg.Data.Time}] [{arg.Data.Source}/{arg.Data.LogLevel.ToString().ToUpper()}] {arg.Data.Log}");
-process.Exited += (_, arg) => {
-    Console.WriteLine();
-    Console.WriteLine(string.Join(Environment.NewLine, process.ArgumentList));
-};
+//process.Started += (_, _) => Console.WriteLine("Launch successful!");
+//process.OutputLogReceived += (_, arg) => Console.WriteLine(string.IsNullOrWhiteSpace(arg.Data.Source) ? $"{arg.Data.Log}" : $"[{arg.Data.Time}] [{arg.Data.Source}/{arg.Data.LogLevel.ToString().ToUpper()}] {arg.Data.Log}");
+//process.Exited += (_, arg) => {
+//    Console.WriteLine();
+//    Console.WriteLine(string.Join(Environment.NewLine, process.ArgumentList));
+//};
 
 #endregion
 
@@ -340,6 +342,37 @@ process.Exited += (_, arg) => {
 
 #endregion
 
+var md = minecraftParser.GetMinecrafts()
+    .GroupBy(x => x.IsVanilla ? "Vanilla" : "Moded")
+    .ToDictionary(x => x.Key, x1 => x1.AsEnumerable());
+
+foreach (var m in md) {
+    Console.WriteLine(m.Key);
+    foreach (var item in m.Value) {
+        Console.WriteLine($"{item.Id}");
+    }
+
+    Console.WriteLine();
+}
+
+var r = md.Serialize(DM.Default.DictionaryStringIEnumerableMinecraftEntry);
+var jdm = r.Deserialize(DM.Default.DictionaryStringIEnumerableMinecraftEntry);
+
+foreach (var m in jdm) {
+    Console.WriteLine(m.Key);
+    foreach (var item in m.Value) {
+        Console.WriteLine($"{item.Id}");
+    }
+
+    Console.WriteLine();
+}
+
+Console.WriteLine("Equals:");
+Console.WriteLine($"{md.First().Value.First().Equals(jdm.Values.First().First())}");
+
 Console.WriteLine("Done!");
 Console.WriteLine($"总耗时：{sw.Elapsed:hh\\:mm\\:ss}");
 Console.ReadKey();
+
+[JsonSerializable(typeof(Dictionary<string, IEnumerable<MinecraftEntry>>))]
+partial class DM : JsonSerializerContext;

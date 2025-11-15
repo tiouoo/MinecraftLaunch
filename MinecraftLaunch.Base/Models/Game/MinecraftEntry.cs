@@ -1,7 +1,6 @@
-﻿using MinecraftLaunch.Base.Interfaces;
+using MinecraftLaunch.Base.Interfaces;
 using MinecraftLaunch.Base.Utilities;
 using System.Diagnostics.CodeAnalysis;
-using System.Drawing;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -9,6 +8,8 @@ using System.Text.RegularExpressions;
 
 namespace MinecraftLaunch.Base.Models.Game;
 
+[JsonDerivedType(typeof(VanillaMinecraftEntry), typeDiscriminator: "vanilla")]
+[JsonDerivedType(typeof(ModifiedMinecraftEntry), typeDiscriminator: "modified")]
 public abstract class MinecraftEntry {
     public required string Id { get; init; }
     public required MinecraftVersion Version { get; init; }
@@ -128,6 +129,20 @@ public abstract class MinecraftEntry {
         }
 
         return (libs, nativeLibs);
+    }
+
+    public override bool Equals(object obj) {
+        if (obj is MinecraftEntry other) {
+            return string.Equals(Id, other.Id, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(MinecraftFolderPath, other.MinecraftFolderPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    public override int GetHashCode() {
+        return HashCode.Combine(Id?.ToLowerInvariant(),
+            MinecraftFolderPath?.ToLowerInvariant());
     }
 }
 
