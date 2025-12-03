@@ -1,15 +1,16 @@
-﻿using MinecraftLaunch.Base.Enums;
+using MinecraftLaunch.Base.Enums;
 using MinecraftLaunch.Base.Interfaces;
+using System;
 
 namespace MinecraftLaunch.Base.Models.Network;
 
 public record ModrinthResource : IResource {
-    public string Id { get; init; }
     public string Slug { get; init; }
     public string Name { get; init; }
     public string Author { get; set; }
     public string Summary { get; init; }
     public string IconUrl { get; init; }
+    public string ProjectId { get; init; }
     public string ProjectType { get; init; }
 
     public int DownloadCount { get; init; }
@@ -23,31 +24,30 @@ public record ModrinthResource : IResource {
     public string WebLink => $"https://modrinth.com/{ProjectType}/{Slug}";
 }
 
-public record ModrinthResourceFiles {
-    public required string Id { get; init; }
-    public required string ProjectId { get; init; }
-    public required string AuthorId { get; init; }
-    public required DateTime DatePublished { get; init; }
-    public required int Downloads { get; init; }
-    public required IEnumerable<ModrinthResourceFile> Files { get; init; }
-    public string ChangelogUrl { get; init; }
-    public string Name { get; init; }
-    public string VersionNumber { get; init; }
-    public string Changelog { get; init; }
-    public IEnumerable<ModrinthFileDependency> Dependencies { get; init; }
-    public IEnumerable<string> GameVersions { get; init; }
-    public FileReleaseType VersionType { get; init; }
-    public IEnumerable<string> Loaders { get; init; }
-    public bool Featured { get; init; }
-    public ModrinthFileStatus Status { get; init; }
-    public RequestedStatus? RequestedStatus { get; init; }
-}
-
 public record ModrinthResourceFile {
-    public required FileHashes Hashes { get; init; }
-    public required string Url { get; init; }
+    public string ChangeLog { get; init; }
+    public string DisplayName { get; init; }
+    public string VersionNumber { get; init; }
+
+    public FileReleaseType ReleaseType { get; init; }
+
+    public required string Sha1 { get; init; }
+    public required string Sha512 { get; init; }
     public required string FileName { get; init; }
-    public required bool Primary { get; init; }
-    public int Size { get; init; }
-    public AdditionalFileType? FileType { get; init; }
+    public required string DownloadUrl { get; init; }
+
+    public required string AuthorId { get; init; }
+    public required string ProjectId { get; init; }
+    public required string VersionId { get; init; }
+
+    public required DateTime Published { get; init; }
+
+    public required bool IsPrimary { get; init; }
+
+    public required long FileSize { get; init; }
+    public required long DownloadCount { get; init; }
+
+    public IEnumerable<string> MinecraftVersions { get; init; }
+    public IEnumerable<ModLoaderType> ModLoaders { get; init; }
+    public IEnumerable<ModrinthFileDependency> Dependencies { get; init; }
 }

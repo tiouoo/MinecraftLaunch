@@ -1,13 +1,9 @@
 using MinecraftLaunch;
 using MinecraftLaunch.Base.Enums;
-using MinecraftLaunch.Base.Models.Game;
-using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Components.Provider;
 using MinecraftLaunch.Extensions;
-using MinecraftLaunch.Utilities;
 using System.Diagnostics;
-using System.Text.Json.Serialization;
 
 InitializeHelper.Initialize(settings => {
     settings.MaxThread = 256;
@@ -15,7 +11,7 @@ InitializeHelper.Initialize(settings => {
     settings.MaxRetryCount = 4;
     settings.IsEnableMirror = false;
     settings.IsEnableFragment = false;
-    settings.CurseForgeApiKey = //"Your Curseforge API";
+    settings.CurseForgeApiKey = "Your Curseforge API";
     settings.UserAgent = "MLTest/1.0";
 });
 
@@ -243,7 +239,7 @@ var sw = Stopwatch.StartNew();
 
 #region Modrinth API
 
-//ModrinthProvider modrinthProvider = new();
+ModrinthProvider modrinthProvider = new();
 //foreach (var mhResource in await modrinthProvider.SearchAsync("Toki")) {
 //    Console.WriteLine(mhResource.Name);
 //    Console.WriteLine(mhResource.Author);
@@ -254,6 +250,34 @@ var sw = Stopwatch.StartNew();
 //    Console.WriteLine($"Categories: {string.Join('，', mhResource.Categories)}");
 //    Console.WriteLine($"ScreenshotUrls: {string.Join('，', mhResource.Screenshots)}");
 //    Console.WriteLine($"MinecraftVersions: {string.Join('，', mhResource.MinecraftVersions)}");
+//    Console.WriteLine();
+//}
+
+//var tokiModInfo = (await modrinthProvider.SearchAsync("Toki")).First();
+//var tokiFiles = await modrinthProvider.GetModFilesByProjectIdAsync(tokiModInfo.ProjectId);
+//foreach (var file in tokiFiles) {
+//    Console.WriteLine("DisplayName：" + file.DisplayName);
+//    Console.WriteLine("FileName：" + file.FileName);
+//    Console.WriteLine("Published：" + file.Published);
+//    Console.WriteLine("DownloadUrl：" + file.ReleaseType);
+//    Console.WriteLine("ChangeLog：" + file.ChangeLog);
+//    Console.WriteLine("FileSize：" + file.FileSize);
+//    Console.WriteLine("DownloadCount：" + file.DownloadCount);
+//    Console.WriteLine("DownloadUrl：" + file.DownloadUrl);
+//    Console.WriteLine($"MinecraftVersions: {string.Join('，', file.MinecraftVersions)}");
+//    Console.WriteLine($"ModLoaders: {string.Join('，', file.ModLoaders)}");
+
+//    Console.WriteLine("Id：" + file.VersionId);
+//    Console.WriteLine("AuthorId：" + file.AuthorId);
+//    Console.WriteLine("ProjectId：" + file.ProjectId);
+//    Console.WriteLine("VersionNumber：" + file.VersionNumber);
+
+
+//    if (file.Dependencies.Any())
+//        Console.WriteLine("Dependencies：" + string.Join("，", file.Dependencies.Select(x => $"(ProjectId：{x.ProjectId} | Type：{x.Type})")));
+
+//    Console.WriteLine("Sha1：" + file.Sha1);
+//    Console.WriteLine("Sha512：" + file.Sha512);
 //    Console.WriteLine();
 //}
 
