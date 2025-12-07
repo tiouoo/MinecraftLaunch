@@ -123,7 +123,7 @@ public sealed class JavaInstaller {
         int maxConcurrentFiles = Math.Max(1, DownloadManager.MaxThread);
     
         int perFileTimeoutMs = 60_000; // 每文件超时 60 秒
-        int maxRetries = 3;             // 每文件最多重试 3 次
+        int maxRetries = DownloadManager.MaxRetryCount; // 每文件最多重试次数与 DownloadManager.MaxRetryCount 保持一致
         int baseRetryDelayMs = 1000;    // 重试间隔指数退避基数
     
         using var semaphore = new SemaphoreSlim(maxConcurrentFiles);
