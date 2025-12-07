@@ -12,7 +12,7 @@ namespace MinecraftLaunch.Components.Installer;
 /// <summary>
 /// 跨平台 Java 安装器
 /// </summary>
-public sealed class JavaInstaller{
+public sealed class JavaInstaller {
     private string JavaFolder { get; init; }
     public  string MinecraftFolder { get; init; }
 
@@ -107,145 +107,144 @@ public sealed class JavaInstaller{
         return new FileInfo(fileName);
     }
     
-    private async Task ExtractJavaFromManifestAsync(FileInfo manifestFile, CancellationToken token)
-{
-    string extractPath = Path.Combine(JavaFolder, "runtime");
-    if (!Directory.Exists(extractPath))
-        Directory.CreateDirectory(extractPath);
-
-    var json = JsonNode.Parse(await File.ReadAllTextAsync(manifestFile.FullName, token).ConfigureAwait(false));
-    var files = json!["files"]!.AsObject();
-
-    var entries = files.ToList();
-    int totalFiles = entries.Count;
-    int completedFiles = 0;
-
-    // 并发数来自 DownloadManager
-    int maxConcurrentFiles = Math.Max(1, DownloadManager.MaxThread);
-
-    int perFileTimeoutMs = 60_000; // 每文件超时 60 秒
-    int maxRetries = 3;             // 每文件最多重试 3 次
-    int baseRetryDelayMs = 1000;    // 重试间隔指数退避基数
-
-    using var semaphore = new SemaphoreSlim(maxConcurrentFiles);
-    var failedFiles = new ConcurrentDictionary<string, string>();
-    var tasks = new List<Task>(totalFiles);
-
-    long globalDownloadedBytes = 0;
-    var globalStopwatch = Stopwatch.StartNew();
-
-    foreach (var kv in entries) {
-        var fileKey = kv.Key;
-        var fileNode = kv.Value!;
-
-        tasks.Add(Task.Run(async () => {
-            await semaphore.WaitAsync(token).ConfigureAwait(false);
-            try {
-                string filePath = Path.Combine(extractPath, fileKey);
-                var fileInfo = fileNode.AsObject();
-
-                // 目录直接创建
-                if (fileInfo["type"]?.ToString() == "directory") {
-                    Directory.CreateDirectory(filePath);
+    private async Task ExtractJavaFromManifestAsync(FileInfo manifestFile, CancellationToken token) {
+        string extractPath = Path.Combine(JavaFolder, "runtime");
+        if (!Directory.Exists(extractPath))
+            Directory.CreateDirectory(extractPath);
+    
+        var json = JsonNode.Parse(await File.ReadAllTextAsync(manifestFile.FullName, token).ConfigureAwait(false));
+        var files = json!["files"]!.AsObject();
+    
+        var entries = files.ToList();
+        int totalFiles = entries.Count;
+        int completedFiles = 0;
+    
+        // 并发数来自 DownloadManager
+        int maxConcurrentFiles = Math.Max(1, DownloadManager.MaxThread);
+    
+        int perFileTimeoutMs = 60_000; // 每文件超时 60 秒
+        int maxRetries = 3;             // 每文件最多重试 3 次
+        int baseRetryDelayMs = 1000;    // 重试间隔指数退避基数
+    
+        using var semaphore = new SemaphoreSlim(maxConcurrentFiles);
+        var failedFiles = new ConcurrentDictionary<string, string>();
+        var tasks = new List<Task>(totalFiles);
+    
+        long globalDownloadedBytes = 0;
+        var globalStopwatch = Stopwatch.StartNew();
+    
+        foreach (var kv in entries) {
+            var fileKey = kv.Key;
+            var fileNode = kv.Value!;
+    
+            tasks.Add(Task.Run(async () => {
+                await semaphore.WaitAsync(token).ConfigureAwait(false);
+                try {
+                    string filePath = Path.Combine(extractPath, fileKey);
+                    var fileInfo = fileNode.AsObject();
+    
+                    // 目录直接创建
+                    if (fileInfo["type"]?.ToString() == "directory") {
+                        Directory.CreateDirectory(filePath);
+                        Interlocked.Increment(ref completedFiles);
+                        ReportProgressWithSpeed();
+                        return;
+                    }
+    
+                    string url = fileInfo["downloads"]?["raw"]?["url"]?.ToString()
+                                 ?? throw new InvalidOperationException($"无法解析文件下载 URL: {fileKey}");
+                    Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+    
+                    var success = false;
+                    Exception lastEx = null;
+    
+                    for (var attempt = 1; attempt <= maxRetries && !token.IsCancellationRequested; attempt++) {
+                        using var singleCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                        singleCts.CancelAfter(perFileTimeoutMs);
+    
+                        var req = new DownloadRequest(url, filePath);
+    
+                        Action<ResourceDownloadProgressChangedEventArgs> progressCallback = e => {
+                            double fileProgress = e.TotalBytes > 0 ? (double)e.DownloadedBytes / e.TotalBytes : 0.0;
+                            Interlocked.Exchange(ref globalDownloadedBytes, Interlocked.Read(ref globalDownloadedBytes) + e.DownloadedBytes);
+    
+                            ReportProgressWithSpeed(fileProgress);
+                        };
+    
+                        if (req.ProgressChanged == null)
+                            req.ProgressChanged = progressCallback;
+                        else {
+                            var prev = req.ProgressChanged;
+                            req.ProgressChanged = e => { 
+                                prev(e);
+                                progressCallback(e);
+                            };
+                        }
+    
+                        try {
+                            await new DefaultDownloader().DownloadAsync(req, singleCts.Token).ConfigureAwait(false);
+                            success = true;
+                            break;
+                        }
+                        catch (OperationCanceledException oce) {
+                            lastEx = oce;
+                            if (token.IsCancellationRequested) break;
+                        }
+                        catch (Exception ex) {
+                            lastEx = ex;
+                        }
+                        finally {
+                            req.ProgressChanged = null;
+                        }
+    
+                        await Task.Delay(baseRetryDelayMs * attempt, token).ConfigureAwait(false);
+                    }
+    
+                    if (!success) {
+                        var reason = lastEx?.Message ?? "Unknown";
+                        failedFiles[fileKey] = reason;
+                        Console.WriteLine($"[Java] 下载失败: {fileKey} 原因: {reason} - JavaInstaller.cs:207");
+                    }
+                }
+                finally {
                     Interlocked.Increment(ref completedFiles);
                     ReportProgressWithSpeed();
-                    return;
+                    semaphore.Release();
                 }
-
-                string url = fileInfo["downloads"]?["raw"]?["url"]?.ToString()
-                             ?? throw new InvalidOperationException($"无法解析文件下载 URL: {fileKey}");
-                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-
-                var success = false;
-                Exception lastEx = null;
-
-                for (var attempt = 1; attempt <= maxRetries && !token.IsCancellationRequested; attempt++) {
-                    using var singleCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    singleCts.CancelAfter(perFileTimeoutMs);
-
-                    var req = new DownloadRequest(url, filePath);
-
-                    Action<ResourceDownloadProgressChangedEventArgs> progressCallback = e => {
-                        double fileProgress = e.TotalBytes > 0 ? (double)e.DownloadedBytes / e.TotalBytes : 0.0;
-                        Interlocked.Exchange(ref globalDownloadedBytes, Interlocked.Read(ref globalDownloadedBytes) + e.DownloadedBytes);
-
-                        ReportProgressWithSpeed(fileProgress);
-                    };
-
-                    if (req.ProgressChanged == null)
-                        req.ProgressChanged = progressCallback;
-                    else {
-                        var prev = req.ProgressChanged;
-                        req.ProgressChanged = e => { 
-                            prev(e);
-                            progressCallback(e);
-                        };
-                    }
-
-                    try {
-                        await new DefaultDownloader().DownloadAsync(req, singleCts.Token).ConfigureAwait(false);
-                        success = true;
-                        break;
-                    }
-                    catch (OperationCanceledException oce) {
-                        lastEx = oce;
-                        if (token.IsCancellationRequested) break;
-                    }
-                    catch (Exception ex) {
-                        lastEx = ex;
-                    }
-                    finally {
-                        req.ProgressChanged = null;
-                    }
-
-                    await Task.Delay(baseRetryDelayMs * attempt, token).ConfigureAwait(false);
+    
+                void ReportProgressWithSpeed(double currentFileProgress = 0.0) {
+                    int snap = Volatile.Read(ref completedFiles);
+                    double overallProgress = 0.7 + (0.3 * Math.Min((snap + currentFileProgress) / totalFiles, 1.0));
+                    double speed = globalDownloadedBytes / Math.Max(1.0, globalStopwatch.Elapsed.TotalSeconds); // Bytes/s
+    
+                    ReportProgress(
+                        InstallStep.DownloadJava,
+                        overallProgress,
+                        TaskStatus.Running,
+                        snap,
+                        totalFiles,
+                        speed
+                    );
                 }
-
-                if (!success) {
-                    var reason = lastEx?.Message ?? "Unknown";
-                    failedFiles[fileKey] = reason;
-                    Console.WriteLine($"[Java] 下载失败: {fileKey} 原因: {reason} - JavaInstaller.cs:207");
-                }
-            }
-            finally {
-                Interlocked.Increment(ref completedFiles);
-                ReportProgressWithSpeed();
-                semaphore.Release();
-            }
-
-            void ReportProgressWithSpeed(double currentFileProgress = 0.0) {
-                int snap = Volatile.Read(ref completedFiles);
-                double overallProgress = 0.7 + (0.3 * Math.Min((snap + currentFileProgress) / totalFiles, 1.0));
-                double speed = globalDownloadedBytes / Math.Max(1.0, globalStopwatch.Elapsed.TotalSeconds); // Bytes/s
-
-                ReportProgress(
-                    InstallStep.DownloadJava,
-                    overallProgress,
-                    TaskStatus.Running,
-                    snap,
-                    totalFiles,
-                    speed
-                );
-            }
-        }, CancellationToken.None));
+            }, CancellationToken.None));
+        }
+    
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+    
+        if (!failedFiles.IsEmpty) {
+            Console.WriteLine("[Java] 以下文件最终失败： - JavaInstaller.cs:237");
+            foreach (var kv in failedFiles)
+                Console.WriteLine($"{kv.Key} : {kv.Value} - JavaInstaller.cs:239");
+        }
+        // 最终 100%
+        ReportProgress(
+            InstallStep.DownloadJava,
+            1.0,
+            TaskStatus.Running,
+            totalFiles,
+            totalFiles,
+            globalDownloadedBytes / Math.Max(1.0, globalStopwatch.Elapsed.TotalSeconds));
     }
-
-    await Task.WhenAll(tasks).ConfigureAwait(false);
-
-    if (!failedFiles.IsEmpty) {
-        Console.WriteLine("[Java] 以下文件最终失败： - JavaInstaller.cs:237");
-        foreach (var kv in failedFiles)
-            Console.WriteLine($"{kv.Key} : {kv.Value} - JavaInstaller.cs:239");
-    }
-    // 最终 100%
-    ReportProgress(
-        InstallStep.DownloadJava,
-        1.0,
-        TaskStatus.Running,
-        totalFiles,
-        totalFiles,
-        globalDownloadedBytes / Math.Max(1.0, globalStopwatch.Elapsed.TotalSeconds));
-}
     private string GetPlatformKey() {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
             return RuntimeInformation.OSArchitecture == Architecture.X64 ? "windows-x64" : "windows-x86";
