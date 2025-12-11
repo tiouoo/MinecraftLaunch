@@ -198,8 +198,9 @@ public sealed class ModrinthProvider {
     }
 
     private static ModrinthResourceFile ParseFile(JsonNode node) {
-        var primaryFileNode = node.GetEnumerable("files")
-            .FirstOrDefault(x => x.GetBool("primary"));
+        var files = node.GetEnumerable("files");
+        var primaryFileNode = files
+            .FirstOrDefault(x => x.GetBool("primary")) ?? files.FirstOrDefault();
         
         return new() {
             VersionId = node.GetString("id"),
