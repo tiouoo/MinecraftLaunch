@@ -231,7 +231,7 @@ public sealed class CurseforgeProvider {
             FileLength = node.GetInt64("fileLength").Value,
             ReleaseType = (FileReleaseType)node.GetInt32("releaseType"),
             Sha1 = node.GetEnumerable("hashes").FirstOrDefault(x => x.GetInt32("algo") == 1).GetString("value"),
-            Dependencies = node.GetEnumerable("dependencies").ToDictionary(x => x.GetInt32("modId"), x => (DependencyType)x.GetInt32("relationType")),
+            Dependencies = node.GetEnumerable("dependencies").DistinctBy(x => x.GetInt32("modId")).ToDictionary(x => x.GetInt32("modId"), x => (DependencyType)x.GetInt32("relationType")),
         };
     }
 
