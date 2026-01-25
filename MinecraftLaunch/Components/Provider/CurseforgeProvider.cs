@@ -87,7 +87,7 @@ public sealed class CurseforgeProvider {
                 gameId = 432,
                 sortField = "Featured",
                 sortOrder = "desc",
-                categoryId = category,
+                cid = category,
                 classId,
                 gameVersion,
                 searchFilter = HttpUtility.UrlEncode(searchFilter)
