@@ -114,7 +114,7 @@ public sealed class CurseforgeProvider {
             .SetQueryParams(new {
                 gameId = 432,
                 sortOrder = searchOptions.SortOrder is SortOrder.Desc ? "desc" : "asc",
-                categoryId = searchOptions.CategoryId,
+                cid = searchOptions.CategoryId,
                 sortField = searchOptions.SortField,
                 classId = searchOptions.ClassId,
                 gameVersion = searchOptions.GameVersion,
