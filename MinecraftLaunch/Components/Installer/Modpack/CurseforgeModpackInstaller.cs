@@ -1,4 +1,5 @@
-﻿using MinecraftLaunch.Base.Enums;
+﻿using System.Diagnostics;
+using MinecraftLaunch.Base.Enums;
 using MinecraftLaunch.Base.Interfaces;
 using MinecraftLaunch.Base.Models.Game;
 using MinecraftLaunch.Base.Models.Network;
@@ -7,6 +8,7 @@ using MinecraftLaunch.Components.Provider;
 using MinecraftLaunch.Extensions;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace MinecraftLaunch.Components.Installer.Modpack;
 
@@ -30,20 +32,21 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
 
     public static CurseforgeModpackInstallEntry ParseModpackInstallEntry(string modpackPath) {
         using var zipArchive = ZipFile.OpenRead(modpackPath);
-        var json = zipArchive?.GetEntry("manifest.json")?.ReadAsString()
+        using var json = zipArchive?.GetEntry("manifest.json")?.Open()
             ?? throw new ArgumentException("Not found manifest.json");
 
-        var entry = json.Deserialize(CurseforgeModpackInstallEntryContext.Default.CurseforgeModpackInstallEntry)
+        var entry = JsonSerializer.Deserialize(json,CurseforgeModpackInstallEntryContext.Default.CurseforgeModpackInstallEntry)
             ?? throw new InvalidOperationException("Failed to parse manifest.json");
 
         return entry;
     }
 
     public static async IAsyncEnumerable<IInstallEntry> ParseModLoaderEntryByManifestAsync(CurseforgeModpackInstallEntry entry, [EnumeratorCancellation] CancellationToken cancellationToken = default) {
-        foreach (var loader in entry.Minecraft.ModLoaders) {
+        Debug.Assert(entry.Minecraft.ModLoaders.ValueKind is JsonValueKind.Array);
+        foreach (var loader in entry.Minecraft.ModLoaders.EnumerateArray()) {
             cancellationToken.ThrowIfCancellationRequested();
 
-            (bool isPrimary, string id) = (loader.GetBool("primary"), loader.GetString("id"));
+            (bool isPrimary, string id) = (loader.GetProperty("primary"u8).GetBoolean(), loader.GetProperty("id"u8).GetString());
             var idDatas = id.Split('-');
 
             var loaderVersion = idDatas.Last();
@@ -119,7 +122,6 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
         List<Task> requestTasks = [];
         List<(string, CurseforgeModpackFileEntry)> downloadInfoGroup = [];
         SemaphoreSlim semaphoreSlim = new(256, 256);
-
         ReportProgress(InstallStep.ParseDownloadUrls, 0.1d, TaskStatus.Running, totalCount, count);
 
         foreach (var modpackFile in Entry.ModFiles) {
@@ -147,16 +149,16 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
         return downloadInfoGroup;
     }
 
-    private async IAsyncEnumerable<string> RedirectInvalidModsAsync(IEnumerable<CurseforgeModpackFileEntry> modpacks, [EnumeratorCancellation] CancellationToken cancellationToken) {
-        ReportProgress(InstallStep.RedirectInvalidMod, 0.5d, TaskStatus.Running, modpacks.Count(), 0);
+    private async IAsyncEnumerable<string> RedirectInvalidModsAsync(List<CurseforgeModpackFileEntry> modpacks, [EnumeratorCancellation] CancellationToken cancellationToken) {
+        ReportProgress(InstallStep.RedirectInvalidMod, 0.5d, TaskStatus.Running, modpacks.Count, 0);
 
         int count = 0;
-        int totalCount = modpacks.Count();
+        int totalCount = modpacks.Count;
         foreach (var modpackFile in modpacks) {
             var modFileName = (await CurseforgeProvider
                 .GetModFileEntryAsync(modpackFile.ProjectId, modpackFile.FileId, cancellationToken))
-                .GetString("fileName");
-
+                .GetProperty("fileName"u8).GetString();
+            
             lock (modpacks) {
                 var progress = (double)count / (double)totalCount;
 

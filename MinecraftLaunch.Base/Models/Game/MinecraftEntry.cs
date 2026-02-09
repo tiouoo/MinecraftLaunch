@@ -81,10 +81,17 @@ public abstract class MinecraftEntry {
             assetIndexJsonPath = instance.InheritedMinecraft.AssetIndexJsonPath;
 
         // Parse asset index json
-        JsonNode jsonNode = JsonNode.Parse(File.ReadAllText(assetIndexJsonPath));
-        Dictionary<string, AssetJsonEntry> assets = jsonNode?["objects"]?
-            .Deserialize(AssetJsonEntryContext.Default.DictionaryStringAssetJsonEntry)
-            ?? throw new InvalidDataException("Error in parsing asset index json file");
+        Dictionary<string, AssetJsonEntry> assets;
+        // 这里不用using表达式语法是为了在yield前释放资源,防止被挂起导致池化内存压力增大
+        using (var stream = File.OpenRead(assetIndexJsonPath))
+        using (var doc = JsonDocument.Parse(stream))
+        {
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("objects"u8, out var value))
+                throw new InvalidDataException("Error in parsing asset index json file");
+            assets = value.Deserialize(AssetJsonEntryContext.Default.DictionaryStringAssetJsonEntry)
+                     ?? throw new InvalidDataException("Error in parsing asset index json file");
+        }
 
         // Parse GameAsset objects
         foreach (var (key, assetJsonNode) in assets) {
@@ -99,13 +106,16 @@ public abstract class MinecraftEntry {
             };
         }
     }
-
+    
     public (IEnumerable<MinecraftLibrary> Libraries, IEnumerable<MinecraftLibrary> NativeLibraries) GetRequiredLibraries() {
         List<MinecraftLibrary> libs = [];
         List<MinecraftLibrary> nativeLibs = [];
 
-        var libNodes = JsonNode.Parse(File.ReadAllText(ClientJsonPath))?["libraries"]?
-            .Deserialize(LibraryEntriesContext.Default.IEnumerableLibraryEntry)
+        using var stream =  File.OpenRead(ClientJsonPath);
+        using var doc = JsonDocument.Parse(stream);
+        var root = doc.RootElement;
+        if(!root.TryGetProperty("libraries"u8,out var librariesElement))throw new InvalidDataException("client.json does not contain library information");
+        var libNodes = librariesElement.Deserialize(LibraryEntriesContext.Default.IEnumerableLibraryEntry)
                 ?? throw new InvalidDataException("client.json does not contain library information");
 
         foreach (var libNode in libNodes) {
@@ -113,7 +123,7 @@ public abstract class MinecraftEntry {
                 continue;
 
             // Check if a library is enabled
-            if (libNode.Rules is IEnumerable<RuleEntry> libRules) {
+            if (libNode.Rules is { } libRules) {
                 if (!IsLibraryEnabled(libRules))
                     continue;
             }
@@ -237,7 +247,7 @@ public abstract partial class MinecraftLibrary : MinecraftDependency {
             throw new InvalidDataException("Invalid library name");
 
         if (libNode.NativeClassifierNames is not null)
-            libNode.MavenName += ":" + libNode.NativeClassifierNames[EnvironmentUtil.GetPlatformName()].Replace("${arch}", EnvironmentUtil.Arch);
+            libNode.MavenName += ":" + libNode.NativeClassifierNames[EnvironmentUtil.GetPlatformName()].Replace("${arch}", EnvironmentUtil.Arch,StringComparison.Ordinal);
 
         if (libNode.DownloadInformation != null) {
             DownloadArtifactEntry artifactNode = GetLibraryArtifactInfo(libNode);
@@ -246,7 +256,7 @@ public abstract partial class MinecraftLibrary : MinecraftDependency {
 
             #region Vanilla Pattern
 
-            if (artifactNode.Url.StartsWith("https://libraries.minecraft.net/")) {
+            if (artifactNode.Url.StartsWith("https://libraries.minecraft.net/", StringComparison.Ordinal)) {
                 return new VanillaLibrary(libNode.MavenName) {
                     MinecraftFolderPath = minecraftFolderPath,
                     Sha1 = artifactNode.Sha1,
@@ -258,8 +268,8 @@ public abstract partial class MinecraftLibrary : MinecraftDependency {
             #endregion
 
             #region Forge Pattern
-
-            if (artifactNode.Url.StartsWith("https://maven.minecraftforge.net/")) {
+            
+            if (artifactNode.Url.StartsWith("https://maven.minecraftforge.net/", StringComparison.Ordinal)) {
                 return new ForgeLibrary(libNode.MavenName) {
                     MinecraftFolderPath = minecraftFolderPath,
                     Sha1 = artifactNode.Sha1,
@@ -273,7 +283,7 @@ public abstract partial class MinecraftLibrary : MinecraftDependency {
 
             #region NeoForge Pattern
 
-            if (artifactNode.Url.StartsWith("https://maven.neoforged.net/")) {
+            if (artifactNode.Url.StartsWith("https://maven.neoforged.net/", StringComparison.Ordinal)) {
                 return new NeoForgeLibrary(libNode.MavenName) {
                     MinecraftFolderPath = minecraftFolderPath,
                     Sha1 = artifactNode.Sha1,
@@ -288,8 +298,8 @@ public abstract partial class MinecraftLibrary : MinecraftDependency {
 
         #region Other Patterns
 
-        if (libNode.MavenName.StartsWith("net.minecraft:launchwrapper")) {
-            return new DownloadableDependency(libNode.MavenName, $"https://libraries.minecraft.net/{GetLibraryPath(libNode.MavenName).Replace("\\", "/")}") {
+        if (libNode.MavenName.StartsWith("net.minecraft:launchwrapper", StringComparison.Ordinal)) {
+            return new DownloadableDependency(libNode.MavenName, $"https://libraries.minecraft.net/{GetLibraryPath(libNode.MavenName).Replace('\\', '/')}") {
                 MinecraftFolderPath = minecraftFolderPath,
                 IsNativeLibrary = libNode.NativeClassifierNames is not null
             };
