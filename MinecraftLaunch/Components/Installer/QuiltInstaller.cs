@@ -24,7 +24,7 @@ public sealed class QuiltInstaller : InstallerBase {
         };
     }
 
-    public static async Task<IEnumerable<QuiltInstallEntry>> EnumerableQuiltAsync(string mcVersion, [EnumeratorCancellation] CancellationToken cancellationToken = default) {
+    public static async Task<IEnumerable<QuiltInstallEntry>> EnumerableQuiltAsync(string mcVersion, CancellationToken cancellationToken = default) {
         string json = await $"https://meta.quiltmc.org/v3/versions/loader/{mcVersion}"
             .GetStringAsync(cancellationToken: cancellationToken);
 
