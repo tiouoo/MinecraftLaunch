@@ -25,18 +25,18 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
     }
 
     public static async Task<IInstallEntry> ParseModLoaderEntryAsync(ModrinthModpackInstallEntry modpack, CancellationToken cancellationToken = default) {
-        if (modpack.Dependencies.ContainsKey("fabric-loader"))
+        if (modpack.Dependencies.TryGetValue("fabric-loader", out var modpackDependency1))
             return (await FabricInstaller.EnumerableFabricAsync(modpack.McVersion, cancellationToken: cancellationToken))
-                .First(x => x.BuildVersion.Equals(modpack.Dependencies["fabric-loader"]));
-        else if (modpack.Dependencies.ContainsKey("quilt-loader"))
+                .First(x => x.BuildVersion.Equals(modpackDependency1));
+        else if (modpack.Dependencies.TryGetValue("quilt-loader", out var dependency1))
             return (await QuiltInstaller.EnumerableQuiltAsync(modpack.McVersion, cancellationToken))
-                .First(x => x.BuildVersion.Equals(modpack.Dependencies["quilt-loader"]));
-        else if (modpack.Dependencies.ContainsKey("forge"))
+                .First(x => x.BuildVersion.Equals(dependency1));
+        else if (modpack.Dependencies.TryGetValue("forge", out var modpackDependency))
             return (await ForgeInstaller.EnumerableForgeAsync(modpack.McVersion, false, cancellationToken))
-                .First(x => x.ForgeVersion.Equals(modpack.Dependencies["forge"]));
-        else if (modpack.Dependencies.ContainsKey("neoforge"))
+                .First(x => x.ForgeVersion.Equals(modpackDependency));
+        else if (modpack.Dependencies.TryGetValue("neoforge", out var dependency))
             return (await ForgeInstaller.EnumerableForgeAsync(modpack.McVersion, true, cancellationToken))
-                .First(x => x.ForgeVersion.Equals(modpack.Dependencies["neoforge"]));
+                .First(x => x.ForgeVersion.Equals(dependency));
         else
             throw new NotSupportedException();
     }
@@ -70,30 +70,37 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
 
     #region Privates
 
-    private IEnumerable<DownloadRequest> ParseModFiles(CancellationToken cancellationToken) {
-        int totalCount = Entry.Files.Count();
-        ReportProgress(InstallStep.ParseDownloadUrls, 0.1d, TaskStatus.Running, totalCount, 0);
-
-        int count = 0;
-        string versionPath = Minecraft.ToWorkingPath(true);
-        foreach (var file in Entry.Files.AsParallel()) {
+    private IEnumerable<DownloadRequest> ParseModFiles(CancellationToken cancellationToken)
+    {
+        const double minProgress = 0.1d;
+        const double maxProgress = 0.45d;
+        var fileArray = Entry.Files.ToArray();
+        var constTotalCount = fileArray.Length;
+        ReportProgress(
+            step: InstallStep.ParseDownloadUrls,
+            progress: 0.1d,
+            status: TaskStatus.Running,
+            totalCount: constTotalCount, 
+            finshedCount: 0);
+        double count = 0;
+        var versionPath = Minecraft.ToWorkingPath(true);
+        //不对Parallel进行Foreach,直接不Parallel
+        return fileArray.Select(fileItem =>
+        {
             cancellationToken.ThrowIfCancellationRequested();
-
-            lock (Entry) {
-                double progress = (double)Interlocked.Increment(ref count) / (double)totalCount;
-                ReportProgress(InstallStep.ParseDownloadUrls, progress.ToPercentage(0.1d, 0.45d),
-                    TaskStatus.Running, totalCount, count);
-            }
-
-            if (!file.Downloads.Any())
-                continue;
-
-            if (string.IsNullOrEmpty(file.Path))
-                continue;
-
-            var filePath = Path.Combine(versionPath, file.Path);
-            yield return new DownloadRequest(file.Downloads.First(), filePath);
-        }
+            // 非多线程且同个闭包可见性好,无需原子操作
+            ReportProgress(
+                step: InstallStep.ParseDownloadUrls,
+                // ReSharper disable once AccessToModifiedClosure
+                progress: (++count / constTotalCount).ToPercentage(minProgress, maxProgress),
+                status: TaskStatus.Running,
+                totalCount: constTotalCount,
+                finshedCount: 0);
+            if (!fileItem.Downloads.Any()) return null;
+            if (string.IsNullOrEmpty(fileItem.Path)) return null;
+            var filePath = Path.Combine(versionPath, fileItem.Path);
+            return new DownloadRequest(fileItem.Downloads.First(), filePath);
+        }).Where(static x => x is not null);
     }
 
     private Task<GroupDownloadResult> DownloadModsAsync(IEnumerable<DownloadRequest> downloadRequests, CancellationToken cancellationToken) {
@@ -111,39 +118,28 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
     }
 
     private async Task ExtractModpackAsync(CancellationToken cancellationToken) {
-        var zipArchive = ZipFile.OpenRead(ModpackPath);
-        var entries = zipArchive?.Entries;
-        ReportProgress(InstallStep.ExtractModpack, 0.85d, TaskStatus.Running, entries.Count, 0);
+      
+        ReportProgress(InstallStep.ExtractModpack, 0.85d, TaskStatus.Running, 0, 0); // 此处未开始解析,返回0
 
         const string decompressPrefix = "overrides";
-        string woringPath = Minecraft.ToWorkingPath(true);
 
-        int count = 0;
-        var tasks = entries.Select(x => Task.Run(() => {
-            lock (zipArchive) {
-                ReportProgress(InstallStep.ExtractModpack,
-                    ((double)Interlocked.Increment(ref count) / (double)entries.Count).ToPercentage(0.85d, 1.0d),
-                    TaskStatus.Running, entries.Count, count);
+        var count = 0; 
+        await ModPackUtils.ExtractSingleThreadAsync(
+            srcZipPath: ModpackPath,
+            overridesPrefix: decompressPrefix,
+            independentAndFullWorkingPath: Minecraft.ToWorkingPath(true),
+            whenEachEntryCompleted: ReportEntryExtractingProgress,
+            cancellationToken: cancellationToken);
+       return;
+        
 
-                if (!x.FullName.StartsWith(decompressPrefix)) 
-                    return;
-
-                var subPath = x.FullName[(decompressPrefix.Length + 1)..];
-                if (string.IsNullOrEmpty(subPath))
-                    return;
-
-                var filePath = new FileInfo(Path.Combine(woringPath, subPath));
-                if (x.FullName.EndsWith('/')) {
-                    filePath.Directory.Create();
-                    return;
-                }
-
-                x.ExtractTo(filePath.FullName);
-            }
-        }, cancellationToken));
-
-        await Task.WhenAll(tasks);
-        zipArchive.Dispose();
+        void ReportEntryExtractingProgress(ZipArchive zipArchive) =>
+            ReportProgress(
+                step: InstallStep.ExtractModpack, 
+                progress: (Interlocked.Increment(ref count) / (double)zipArchive.Entries.Count).ToPercentage(0.85d, 1.0d),
+                status:  TaskStatus.Running,
+                totalCount: zipArchive.Entries.Count,
+                finshedCount: count);
     }
 
     #endregion
