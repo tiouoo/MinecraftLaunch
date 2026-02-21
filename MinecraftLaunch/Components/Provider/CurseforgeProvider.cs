@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Flurl;
 using Flurl.Http;
 using MinecraftLaunch.Base.Enums;
@@ -7,9 +6,9 @@ using MinecraftLaunch.Extensions;
 using MinecraftLaunch.Utilities;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Web;
+using MinecraftLaunch.Base.Models.SHA1;
 
 namespace MinecraftLaunch.Components.Provider;
 
@@ -26,7 +25,7 @@ public sealed class CurseforgeProvider {
 
         await using var stream = await responseMessage.GetStreamAsync();
         using var doc  = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-        var exactMatches = doc.RootElement.GetPropertyNullable("data"u8)?.GetPropertyNullable("exactMatches");
+        var exactMatches = doc.RootElement.GetPropertyNullable("data"u8)?.GetPropertyNullable("exactMatches"u8);
         
         // 此处对API行为有变更,document会释放所以需要立即终结迭代器,不能延迟执行
         return exactMatches?
@@ -84,8 +83,8 @@ public sealed class CurseforgeProvider {
         using var doc  = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
         var dataElement = doc.RootElement.GetProperty("data"u8);
 
-        var popular = dataElement.GetPropertyNullable("popular");
-        var featured = dataElement.GetPropertyNullable("featured");
+        var popular = dataElement.GetPropertyNullable("popular"u8);
+        var featured = dataElement.GetPropertyNullable("featured"u8);
 
         
         if (popular is null || featured is null) return [];
@@ -294,14 +293,16 @@ public sealed class CurseforgeProvider {
                     x => (DependencyType)x.GetProperty("relationType"u8).GetInt32()
                 );
         }
-        static string ProvideSha(JsonElement hashesArrayNode)
+        static Sha1Data? ProvideSha(JsonElement hashesArrayNode)
         {
             foreach (var node in hashesArrayNode.EnumerateArray())
             {
+                
                 if (!node.TryGetProperty("algo"u8,out var algoElement))continue;
-                if (algoElement.GetInt32() is 1) return node.GetProperty("value"u8).GetString();
+                if (algoElement.GetInt32() is 1) return node.GetProperty("value"u8).Deserialize(Sha1Data.Sha1DataSerializerContext.Default.Sha1Data);
             }
-            return string.Empty;
+
+            return null;
         }
     }
 
