@@ -1,0 +1,23 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Debug-AOT" />
+    <BuildType Name="Release" />
+    <BuildType Name="Release-AOT" />
+    <Platform Name="Any CPU" />
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="MinecraftLaunch.Base/MinecraftLaunch.Base.csproj">
+    <BuildType Solution="Debug-AOT|*" Project="Debug" />
+    <BuildType Solution="Release-AOT|*" Project="Release" />
+  </Project>
+  <Project Path="MinecraftLaunch.Example/MinecraftLaunch.Example.csproj">
+    <BuildType Solution="Debug-AOT|*" Project="Debug" />
+    <BuildType Solution="Release-AOT|*" Project="Release" />
+  </Project>
+  <Project Path="MinecraftLaunch/MinecraftLaunch.csproj">
+    <BuildType Solution="Debug-AOT|*" Project="Debug" />
+    <BuildType Solution="Release-AOT|*" Project="Release" />
+  </Project>
+</Solution>
