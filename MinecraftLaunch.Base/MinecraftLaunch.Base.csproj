@@ -10,7 +10,7 @@
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<Description>MinecraftLaunch 的基础库</Description>
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-		<TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Authors>Lunova-Studio</Authors>
 		<LangVersion>latest</LangVersion>
