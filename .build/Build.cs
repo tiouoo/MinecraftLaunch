@@ -3,11 +3,11 @@ using Nuke.Common.CI.GitHubActions;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
 using Nuke.Common.Tools.DotNet;
-using Nuke.Components;
-using System.Collections.Generic;
-using Serilog;
-using Nuke.Common.Tooling;
 using Nuke.Common.Tools.NuGet;
+using Nuke.Common.Tooling;
+using Nuke.Components;
+using Serilog;
+using System.Collections.Generic;
 
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 
@@ -75,7 +75,7 @@ class Build : NukeBuild, IHazSolution, ITest, IPack, ICompile, IRestore, IPublis
             DotNetPack(x => x
                 .SetConfiguration(Configuration.Release)
                 .SetOutputDirectory(_output)
-                .CombineWith([Solution.MinecraftLaunch, Solution.MinecraftLaunch_Base], (s, proj) =>s
+                .CombineWith([Solution.MinecraftLaunch, Solution.MinecraftLaunch_Base], (s, proj) => s
                     .EnableNoBuild()
                     .SetProject(proj)));
         });
@@ -87,4 +87,4 @@ class Build : NukeBuild, IHazSolution, ITest, IPack, ICompile, IRestore, IPublis
 
     #endregion
 }
-//Clean → Restore → Compile → Pack → Push
+// Clean → Restore → Compile → Pack → Push
