@@ -37,7 +37,7 @@ jobs:
       - name: 'Run: Publish'
         run: ./build.cmd Publish
         env:
-          NugetKey: ${{ secrets.NUGET_KEY }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       - name: 'Publish: test-results'
         uses: actions/upload-artifact@v5
         with:

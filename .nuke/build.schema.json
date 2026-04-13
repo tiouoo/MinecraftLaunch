@@ -114,7 +114,7 @@
           "type": "boolean",
           "description": "Ignore unreachable sources during Restore"
         },
-        "NUGET_API_KEY": {
+        "NugetApiKey": {
           "type": "string",
           "default": "Secrets must be entered via 'nuke :secrets [profile]'"
         },

@@ -14,21 +14,21 @@ using Nuke.Common.Tooling;
 
 [GitHubActions("ci_build",
     GitHubActionsImage.UbuntuLatest,
-    AutoGenerate = true,
+    AutoGenerate = false,
     OnPushBranches = ["4.0.x"],
     InvokedTargets = [nameof(IPublish.Publish)],
-    ImportSecrets = [nameof(NugetKey)])]
+    ImportSecrets = ["NUGET_API_KEY"])]
 class Build : NukeBuild, IHazSolution, ITest, IPack, ICompile, IRestore, IPublish {
     private readonly AbsolutePath _output = RootDirectory / "artifacts";
 
-    [Parameter(Name = "NUGET_API_KEY"), Secret] private readonly string NugetKey;
+    [Parameter, Secret] private readonly string NugetApiKey;
 
     [Solution(GenerateProjects = true)]
     private readonly Solution Solution;
 
     private readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
 
-    string IPublish.NuGetApiKey => NugetKey;
+    string IPublish.NuGetApiKey => NugetApiKey;
 
     Nuke.Common.ProjectModel.Solution IHazSolution.Solution => Solution;
 
