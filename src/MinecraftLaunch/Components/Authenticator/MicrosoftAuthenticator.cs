@@ -200,7 +200,11 @@ public sealed class MicrosoftAuthenticator {
         {
             using var profileNode = await JsonDocument.ParseAsync(await profileRes.GetStreamAsync(),
                 cancellationToken: cancellationToken);
-            return new MicrosoftAccount(profileNode.RootElement.GetProperty("name"u8).GetString(), profileNode.RootElement.GetProperty("id"u8).GetGuid(), accessToken, refreshToken, DateTime.Now);
+            
+            var name = profileNode.RootElement.GetProperty("name"u8).GetString();
+            var uuid = profileNode.RootElement.GetProperty("id"u8).GetString(); // fix guid parse error
+            
+            return new MicrosoftAccount(name, Guid.Parse(uuid!), accessToken, refreshToken, DateTime.Now);
         }
         catch (Exception e)
         {

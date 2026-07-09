@@ -1,4 +1,4 @@
-﻿using MinecraftLaunch.Base.Models.Game;
+using MinecraftLaunch.Base.Models.Game;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
 using System.Threading;
@@ -18,7 +18,7 @@ public sealed class MinecraftRunner {
     public MinecraftProcess Run(string id) {
         MinecraftEntry minecraft = default;
         IEnumerable<string> arguments = [];
-
+        
         try {
             minecraft = _minecraftParser.GetMinecraft(id);
             ArgumentsParser parser = new(minecraft, LaunchConfig);

@@ -40,11 +40,8 @@ public record MicrosoftAccount(
     public string RefreshToken { get; set; } = RefreshToken;
 
     public override bool ProfileEquals(Account account) {
-        if (account is MicrosoftAccount microsoftAccount
-            && microsoftAccount.Uuid.Equals(this.Uuid))
-            return true;
-
-        return false;
+        return account is MicrosoftAccount microsoftAccount
+               && microsoftAccount.Uuid.Equals(this.Uuid);
     }
 
     public override int GetHashCode() => Type.GetHashCode() ^ Uuid.GetHashCode();
