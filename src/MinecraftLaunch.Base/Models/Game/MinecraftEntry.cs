@@ -460,7 +460,7 @@ public abstract partial class MinecraftLibrary : MinecraftDependency {
                 MinecraftFolderPath = minecraftFolderPath,
                 IsNativeLibrary = false,
                 Size = libNode.Size,
-                Sha1 = libNode.Sha1!.Value
+                Sha1 = libNode.Sha1
             };
         }
 

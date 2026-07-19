@@ -25,6 +25,7 @@ public record MinecraftJsonEntry {
     /// <summary> ValueType is Array </summary>
     [JsonPropertyName("libraries")] public JsonElement Libraries { get; set; }
     [JsonPropertyName("inheritsFrom")] public string InheritsFrom { get; set; }
+    [JsonPropertyName("jar")] public string Jar { get; set; }
     [JsonPropertyName("javaVersion")] public JsonElement JavaVersion { get; set; }
     [JsonPropertyName("releaseTime")] public DateTime ReleaseTime { get; set; }
     [JsonPropertyName("assetIndex")] public AssstIndexJsonEntry AssetIndex { get; set; }
