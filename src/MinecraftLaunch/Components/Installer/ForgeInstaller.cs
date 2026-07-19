@@ -22,7 +22,7 @@ public sealed class ForgeInstaller : InstallerBase {
     public string JavaPath { get; init; }
     public ForgeInstallEntry Entry { get; init; }
     public override string MinecraftFolder { get; init; }
-    public MinecraftEntry InheritedMinecraft { get; init; }
+    public MinecraftEntry InheritedMinecraft { get; set; }
 
     public static ForgeInstaller Create(string folder, string javaPath, ForgeInstallEntry installEntry, string customId = default) {
         return new ForgeInstaller {
@@ -189,6 +189,8 @@ public sealed class ForgeInstaller : InstallerBase {
             jsonFile.Directory.Create();
 
         jsonNode!["id"] = entryId;
+        if (InheritedMinecraft is not null)
+            jsonNode["inheritsFrom"] = InheritedMinecraft.Id;
         await File.WriteAllTextAsync(jsonFile.FullName, jsonNode.ToJsonString(), cancellationToken);
 
         ReportProgress(InstallStep.WriteVersionJsonAndSomeDependencies, 0.60d, TaskStatus.Running, 1, 1);

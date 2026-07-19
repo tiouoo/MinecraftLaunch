@@ -7,6 +7,7 @@ using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace MinecraftLaunch.Components.Installer;
 
@@ -14,7 +15,7 @@ public sealed class QuiltInstaller : InstallerBase {
     public string CustomId { get; init; }
     public QuiltInstallEntry Entry { get; init; }
     public override string MinecraftFolder { get; init; }
-    public MinecraftEntry InheritedMinecraft { get; init; }
+    public MinecraftEntry InheritedMinecraft { get; set; }
 
     public static QuiltInstaller Create(string mcFolder, QuiltInstallEntry installEntry, string customId = default) {
         return new QuiltInstaller {
@@ -90,9 +91,11 @@ public sealed class QuiltInstaller : InstallerBase {
         if (!jsonFile.Directory!.Exists)
             jsonFile.Directory.Create();
 
-        await using var output = File.OpenWrite(jsonFile.FullName);
-        await JsonSerializer.SerializeAsync(output, doc, JsonDocumentSerializeContext.Default.JsonDocument,
-            cancellationToken);
+        var json = JsonNode.Parse(doc.RootElement.GetRawText())
+            ?? throw new InvalidDataException("The Quilt profile is invalid.");
+        json["id"] = entryId;
+        json["inheritsFrom"] = entry.Id;
+        await File.WriteAllTextAsync(jsonFile.FullName, json.ToJsonString(), cancellationToken);
 
         ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
         return jsonFile;
