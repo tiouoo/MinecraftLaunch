@@ -180,17 +180,21 @@ public class DefaultDownloader : IDownloader {
         else
             states.TotalBytes = request.Size;
 
-        if (DownloadManager.IsEnableFragment) {
-            bool supportsRange = await ValidateRangeSupport(finalUrl, cancellationToken);
-            if (supportsRange) {
-                var progressTask = ReportProgressAsync(states, request, cancellationToken);
-                var downloadTask = DownloadMultiPartAsync(states, request, cancellationToken);
-                await Task.WhenAll(progressTask, downloadTask).ConfigureAwait(false);
-                return;
+        var progressTask = ReportProgressAsync(states, request, cancellationToken);
+        try {
+            if (DownloadManager.IsEnableFragment) {
+                bool supportsRange = await ValidateRangeSupport(finalUrl, cancellationToken);
+                if (supportsRange) {
+                    await DownloadMultiPartAsync(states, request, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
             }
-        }
 
-        await DownloadSinglePartAsync(states, request, cancellationToken).ConfigureAwait(false);
+            await DownloadSinglePartAsync(states, request, cancellationToken).ConfigureAwait(false);
+        } finally {
+            Interlocked.Exchange(ref states.IsCompleted, 1);
+            await progressTask.ConfigureAwait(false);
+        }
     }
 
     private static async Task<(HttpResponseMessage, string)> PrepareForDownloadAsync(string url, CancellationToken cancellationToken) {
@@ -240,14 +244,6 @@ public class DefaultDownloader : IDownloader {
             ArrayPool<byte>.Shared.Return(buffer);
         }
 
-        request.ProgressChanged?.Invoke(new ResourceDownloadProgressChangedEventArgs {
-            Speed = 0,
-            EstimatedRemaining = TimeSpan.Zero,
-            TotalBytes = states.TotalBytes,
-            DownloadedBytes = states.TotalBytes,
-            TotalCount = 1,
-            CompletedCount = 1
-        });
     }
 
     private static async Task MultipartDownloadWorker(DownloadStates states, DownloadRequest request, CancellationToken cancellationToken) {
@@ -275,12 +271,12 @@ public class DefaultDownloader : IDownloader {
         long prevBytes = 0;
         double prevTime = 0;
 
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(1000));
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false)) {
             long nowBytes = Interlocked.Read(ref states.DownloadedBytes);
             long totalBytes = Interlocked.Read(ref states.TotalBytes);
 
-            if (totalBytes > 0 && nowBytes >= totalBytes)
+            if (Volatile.Read(ref states.IsCompleted) != 0 || totalBytes > 0 && nowBytes >= totalBytes)
                 break;
 
             double nowTime = sw.Elapsed.TotalSeconds;
@@ -373,6 +369,7 @@ public class DefaultDownloader : IDownloader {
 
         public long TotalBytes;
         public long DownloadedBytes;
+        public int IsCompleted;
 
         public long FragmentSize;
         public long TotalFragments;
