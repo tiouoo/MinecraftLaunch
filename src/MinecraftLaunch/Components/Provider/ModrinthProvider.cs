@@ -79,7 +79,7 @@ public sealed class ModrinthProvider {
         var request = HttpUtil.Request(url);
         await using var responseMessage = await request.GetStreamAsync(cancellationToken: cancellationToken);
         using var doc =  await JsonDocument.ParseAsync(responseMessage, cancellationToken: cancellationToken);
-        return Parse(doc.RootElement);
+        return Parse(doc.RootElement, isDetail: true);
     }
 
     public async Task<IEnumerable<ModrinthResource>> SearchByProjectIdsAsync(IEnumerable<string> projectIds, CancellationToken cancellationToken = default) {
@@ -191,7 +191,7 @@ public sealed class ModrinthProvider {
         return new ModrinthResource {
             Slug = jsonNode.GetProperty("slug"u8).GetString(),
             Name = jsonNode.GetProperty("title"u8).GetString(),
-            ProjectId = jsonNode.GetProperty("project_id"u8).GetString(),
+            ProjectId = isDetail ? jsonNode.GetProperty("id"u8).GetString() : jsonNode.GetProperty("project_id"u8).GetString(),
             Author = jsonNode.TryGetProperty("author"u8, out var authorElement) ? authorElement.GetString() : null,
             IconUrl = jsonNode.GetProperty("icon_url"u8).GetString(),
             Summary = jsonNode.GetProperty("description"u8).GetString(),
