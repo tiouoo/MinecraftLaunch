@@ -72,6 +72,27 @@ public sealed class CurseforgeProvider {
         return dataElement.EnumerateArrayThenSelectToArray(Parse);
     }
 
+    public async Task<IEnumerable<CurseforgeResourceFile>> GetModFilesAsync(long modId,
+        CancellationToken cancellationToken = default) {
+        const int pageSize = 50;
+        var files = new List<CurseforgeResourceFile>();
+        for (var index = 0; ; index += pageSize) {
+            var url = new Url(CurseforgeApi).AppendPathSegments("mods", modId, "files")
+                .SetQueryParams(new { index, pageSize });
+            await using var stream = await CreateRequest(url).GetStreamAsync(cancellationToken: cancellationToken);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            var page = doc.RootElement.GetProperty("data"u8).EnumerateArrayThenSelectToArray(ParseFile);
+            files.AddRange(page);
+
+            var totalCount = doc.RootElement.TryGetProperty("pagination"u8, out var pagination) &&
+                             pagination.TryGetProperty("totalCount"u8, out var total)
+                ? total.GetInt32()
+                : files.Count;
+            if (files.Count >= totalCount || page.Length < pageSize)
+                return files;
+        }
+    }
+
     public async Task<IEnumerable<CurseforgeResource>> GetFeaturedResourcesAsync(CancellationToken cancellationToken = default) {
         var request = CreateRequest("mods", "featured");
         var payload = new CurseforgeFeaturedRequestPayload(432, [0]);
