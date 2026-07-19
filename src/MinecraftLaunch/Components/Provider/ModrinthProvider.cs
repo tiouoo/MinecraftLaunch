@@ -116,6 +116,20 @@ public sealed class ModrinthProvider {
         ModLoaderType modLoader = ModLoaderType.Any,
         ModrinthSearchIndex index = ModrinthSearchIndex.Relevance,
         CancellationToken cancellationToken = default) {
+        return (await SearchPageAsync(searchFilter, version, category, projectType, modLoader, index,
+            cancellationToken: cancellationToken)).Items;
+    }
+
+    public async Task<ProviderSearchPage<ModrinthResource>> SearchPageAsync(
+        string searchFilter,
+        string version = "",
+        string category = "",
+        string projectType = "mod",
+        ModLoaderType modLoader = ModLoaderType.Any,
+        ModrinthSearchIndex index = ModrinthSearchIndex.Relevance,
+        int offset = 0,
+        int limit = 20,
+        CancellationToken cancellationToken = default) {
         List<List<string>> facetsList = [[$"project_type:{projectType}"]];
 
         if (!string.IsNullOrEmpty(version))
@@ -149,21 +163,25 @@ public sealed class ModrinthProvider {
             .SetQueryParams(new {
                 query = searchFilter,
                 facets,
-                index = index switch {
+                 index = index switch {
                     ModrinthSearchIndex.Follows => "follows",
                     ModrinthSearchIndex.Downloads => "downloads",
                     ModrinthSearchIndex.Relevance => "relevance",
                     ModrinthSearchIndex.DateUpdated => "updated",
                     ModrinthSearchIndex.DatePublished => "newest",
                     _ => "relevance"
-                }
+                },
+                offset = Math.Max(0, offset),
+                limit = Math.Clamp(limit, 1, 100)
             });
 
         var request = HttpUtil.Request(url);
 
         await using var json = await request.GetStreamAsync(cancellationToken: cancellationToken);
         using var doc = await JsonDocument.ParseAsync(json, cancellationToken: cancellationToken);
-        return doc.RootElement.GetProperty("hits"u8).EnumerateArrayThenSelectToArray(static x=>Parse(x));
+        return new ProviderSearchPage<ModrinthResource>(
+            doc.RootElement.GetProperty("hits"u8).EnumerateArrayThenSelectToArray(static x => Parse(x)),
+            doc.RootElement.GetProperty("total_hits"u8).GetInt32());
     }
 
     #region Private

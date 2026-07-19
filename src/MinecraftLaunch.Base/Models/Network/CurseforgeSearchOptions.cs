@@ -12,7 +12,11 @@ public record CurseforgeSearchOptions {
     public SortOrder SortOrder { get; set; } = SortOrder.Desc;
     public SortField SortField { get; set; } = SortField.Featured;
     public ModLoaderType ModLoaderType { get; set; }
+    public int Index { get; set; }
+    public int PageSize { get; set; } = 20;
 }
+
+public sealed record ProviderSearchPage<T>(IReadOnlyList<T> Items, int TotalCount);
 
 public enum SortOrder {
     /// <summary>

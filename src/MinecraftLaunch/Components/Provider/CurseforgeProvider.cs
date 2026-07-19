@@ -116,11 +116,12 @@ public sealed class CurseforgeProvider {
                 gameId = 432,
                 sortField = "Featured",
                 sortOrder = "desc",
-                cid = category,
                 classId,
                 gameVersion,
                 searchFilter = HttpUtility.UrlEncode(searchFilter)
             });
+        if (category > 0)
+            url.SetQueryParam("categoryId", category);
 
         if (modLoaderType != ModLoaderType.Any && modLoaderType != ModLoaderType.Unknown)
             url.SetQueryParam("modLoaderType", (int)modLoaderType);
@@ -142,17 +143,27 @@ public sealed class CurseforgeProvider {
         CurseforgeSearchOptions searchOptions,
         CancellationToken cancellationToken = default) {
 
+        return (await SearchResourcesPageAsync(searchOptions, cancellationToken)).Items;
+    }
+
+    public async Task<ProviderSearchPage<CurseforgeResource>> SearchResourcesPageAsync(
+        CurseforgeSearchOptions searchOptions,
+        CancellationToken cancellationToken = default) {
+
         var url = new Url(CurseforgeApi)
             .AppendPathSegment("mods/search")
             .SetQueryParams(new {
                 gameId = 432,
                 sortOrder = searchOptions.SortOrder is SortOrder.Desc ? "desc" : "asc",
-                cid = searchOptions.CategoryId,
                 sortField = searchOptions.SortField,
                 classId = searchOptions.ClassId,
                 gameVersion = searchOptions.GameVersion,
-                searchFilter = HttpUtility.UrlEncode(searchOptions.SearchFilter)
+                searchFilter = HttpUtility.UrlEncode(searchOptions.SearchFilter),
+                index = Math.Max(0, searchOptions.Index),
+                pageSize = Math.Clamp(searchOptions.PageSize, 1, 50)
             });
+        if (searchOptions.CategoryId > 0)
+            url.SetQueryParam("categoryId", searchOptions.CategoryId);
 
         var modLoaderType = searchOptions.ModLoaderType;
         if (modLoaderType != ModLoaderType.Any && modLoaderType != ModLoaderType.Unknown)
@@ -162,12 +173,16 @@ public sealed class CurseforgeProvider {
         {
             await using var stream = await CreateRequest(url).GetStreamAsync(cancellationToken: cancellationToken);
             using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-            return doc.RootElement.GetProperty("data"u8).EnumerateArrayThenSelectToArray(Parse);
+            var items = doc.RootElement.GetProperty("data"u8).EnumerateArrayThenSelectToArray(Parse);
+            var totalCount = doc.RootElement.TryGetProperty("pagination"u8, out var pagination) &&
+                             pagination.TryGetProperty("totalCount"u8, out var total)
+                ? total.GetInt32()
+                : items.Length;
+            return new ProviderSearchPage<CurseforgeResource>(items, totalCount);
         }
-        // 这个只是为了和原API保持一致加的
         catch
         {
-            return [];
+            throw;
         }
     }
 
