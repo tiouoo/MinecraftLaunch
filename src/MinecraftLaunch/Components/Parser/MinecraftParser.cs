@@ -52,6 +52,10 @@ public sealed class MinecraftParser {
 
         foreach (DirectoryInfo dir in versionsDirectory.EnumerateDirectories())
         {
+            // PCL uses this marker while an instance is still being installed.
+            if (File.Exists(Path.Combine(dir.FullName, ".pclignore")))
+                continue;
+
             var entry = Parse(dir, list, out bool inheritedInstanceAlreadyFound);
             int index = list.FindIndex(i => i.Id == entry.Id);
             if (index != -1)
@@ -78,10 +82,12 @@ public sealed class MinecraftParser {
         if (!clientDir.Exists)
             throw new DirectoryNotFoundException($"{clientDir.FullName} not found");
 
-        // Find client.json
-        var clientJsonFile = clientDir
-            .GetFiles($"{clientDir.Name}.json")
-            .FirstOrDefault()
+        if (File.Exists(Path.Combine(clientDir.FullName, ".pclignore")))
+            throw new InvalidOperationException($"Minecraft instance {clientDir.Name} is still being installed by PCL");
+
+        // PCL accepts a valid version JSON even when it does not match the folder name.
+        var clientJsonFile = clientDir.GetFiles($"{clientDir.Name}.json").FirstOrDefault()
+            ?? FindFallbackClientJson(clientDir)
             ?? throw new FileNotFoundException($"client.json not found in {clientDir.FullName}");
         string clientJsonPath = clientJsonFile.FullName;
 
@@ -104,6 +110,25 @@ public sealed class MinecraftParser {
         return IsVanilla(clientJsonObject)
             ? ParseVanilla(partialData, clientJsonObject, doc.RootElement)
             : ParseModified(partialData, clientJsonObject, doc.RootElement, parsedInstances, out foundInheritedInstanceInParsed);
+    }
+
+    private static FileInfo FindFallbackClientJson(DirectoryInfo clientDir) {
+        foreach (var file in clientDir.EnumerateFiles("*.json")) {
+            try {
+                using var stream = file.OpenRead();
+                using var document = JsonDocument.Parse(stream);
+                var root = document.RootElement;
+                if (root.ValueKind == JsonValueKind.Object
+                    && root.TryGetProperty("id"u8, out _)
+                    && (root.TryGetProperty("mainClass"u8, out _)
+                        || root.TryGetProperty("patches"u8, out _)))
+                    return file;
+            } catch (JsonException) {
+                // Other JSON files in a version directory are not necessarily version metadata.
+            }
+        }
+
+        return null;
     }
 
     private static bool IsVanilla(MinecraftJsonEntry clientJsonObject) {
@@ -146,13 +171,23 @@ public sealed class MinecraftParser {
     {
         Debug.Assert(clientJsonNode.ValueKind == JsonValueKind.Object);
         var versionId = gameJsonEntry.Id;
-        if (clientJsonNode.TryGetProperty("patches"u8, out var hmclPatchesNode))
+        if (clientJsonNode.TryGetProperty("clientVersion"u8, out var pclClientVersionNode)
+            && pclClientVersionNode.ValueKind == JsonValueKind.String)
         {
-            if(hmclPatchesNode.GetArrayLength() < 0)throw new FormatException("Failed to parse version id");
-            versionId = hmclPatchesNode[0].GetProperty("version"u8).GetString();
-        }
-        else if (clientJsonNode.TryGetProperty("clientVersion"u8, out var pclClientVersionNode)) 
             versionId = pclClientVersionNode.GetString();
+        }
+        else if (clientJsonNode.TryGetProperty("patches"u8, out var hmclPatchesNode)
+                 && hmclPatchesNode.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var patch in hmclPatchesNode.EnumerateArray()) {
+                if (patch.TryGetProperty("id"u8, out var idNode)
+                    && idNode.ValueEquals("game"u8)
+                    && patch.TryGetProperty("version"u8, out var versionNode)) {
+                    versionId = versionNode.GetString();
+                    break;
+                }
+            }
+        }
 
         return versionId ?? throw new FormatException("Failed to parse version id");
     }
@@ -212,9 +247,11 @@ public sealed class MinecraftParser {
                 : Path.Combine(partialData.MinecraftFolderPath, "assets", "indexes", $"{minecraftJsonEntry.AssetIndex.Id}.json");
 
         // Check if client.jar exists
-        string clientJarPath = hasInheritance
-            ? inheritedEntry.ClientJarPath
-            : partialData.ClientJsonPath[..^"json".Length] + "jar";
+        string clientJarPath = !string.IsNullOrWhiteSpace(minecraftJsonEntry.Jar)
+            ? Path.Combine(partialData.MinecraftFolderPath, "versions", minecraftJsonEntry.Jar, $"{minecraftJsonEntry.Jar}.jar")
+            : hasInheritance
+                ? inheritedEntry.ClientJarPath
+                : partialData.ClientJsonPath[..^"json".Length] + "jar";
 
         // Parse version
         MinecraftVersion? version;

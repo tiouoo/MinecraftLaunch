@@ -4,7 +4,9 @@ using MinecraftLaunch.Base.Models.Game;
 using MinecraftLaunch.Base.Utilities;
 using MinecraftLaunch.Extensions;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace MinecraftLaunch.Components.Parser;
 
@@ -63,7 +65,7 @@ public sealed class ArgumentsParser
                 }
                 else if (lib.Name == containedLib.Name
                          && lib.Classifier == containedLib.Classifier
-                         && lib.Domain == lib.Domain)
+                          && lib.Domain == containedLib.Domain)
                 {
                     sameNameLib = containedLib;
                     break;
@@ -171,7 +173,9 @@ public sealed class ArgumentsParser
             { "${launcher_version}", "4" },
             { "${classpath_separator}", Path.PathSeparator.ToString() },
             { "${library_directory}", MinecraftEntry.ToLibrariesPath().ToPath() },
+            { "${libraries_directory}", MinecraftEntry.ToLibrariesPath().ToPath() },
             { "${classpath}", classPath.ToPath() },
+            { "${primary_jar}", MinecraftEntry.ClientJarPath.ToPath() },
             {
                 "${version_name}", MinecraftEntry is ModifiedMinecraftEntry { HasInheritance: true } instance
                     ? instance.InheritedMinecraft.Id.ToPath()
@@ -206,8 +210,11 @@ public sealed class ArgumentsParser
         {
             { "${auth_player_name}", LaunchConfig.Account.Name },
             { "${auth_access_token}", LaunchConfig.Account.AccessToken },
+            { "${access_token}", LaunchConfig.Account.AccessToken },
             { "${auth_session}", LaunchConfig.Account.AccessToken },
             { "${auth_uuid}", LaunchConfig.Account.Uuid.ToString("N") },
+            { "${clientid}", string.Empty },
+            { "${auth_xuid}", string.Empty },
             { "${user_type}", LaunchConfig.Account.Type.Equals(AccountType.Microsoft) ? "MSA" : "Mojang" },
             { "${user_properties}", "{}" },
             { "${version_name}", MinecraftEntry.Id.ToPath() },
@@ -281,9 +288,8 @@ internal sealed class GameArgumentParser
             yield break;
         
 
-        var game = gameElement.EnumerateArray()
-            .Where(x => x.ValueKind is JsonValueKind.String)
-            .Select(x => x.GetString().ToPath())
+        var game = VersionArgumentRuleParser.Parse(gameElement)
+            .Select(x => x.ToPath())
             .GroupArguments();
 
         foreach (var item in game)
@@ -307,17 +313,14 @@ internal sealed class JvmArgumentParser
             yield break;
         }
         var jvm = new List<string>();
-        foreach (var arg in jvmElement.EnumerateArray())
+        foreach (var argValue in VersionArgumentRuleParser.Parse(jvmElement))
         {
-            if (arg.ValueKind is JsonValueKind.String)
-            {
-                var argValue = arg.GetString()!.Trim();
+            var value = argValue.Trim();
 
-                if (argValue.Contains(' '))
-                    jvm.AddRange(argValue.Split(' '));
-                else
-                    jvm.Add(argValue);
-            }
+            if (value.Contains(' '))
+                jvm.AddRange(value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            else
+                jvm.Add(value);
         }
 
         foreach (var arg in jvm.GroupArguments())
@@ -352,5 +355,91 @@ internal sealed class JvmArgumentParser
 
         if (EnvironmentUtil.Arch == "32")
             yield return "-Xss1M";
+    }
+}
+
+internal static class VersionArgumentRuleParser
+{
+    public static IEnumerable<string> Parse(JsonElement arguments)
+    {
+        foreach (var argument in arguments.EnumerateArray())
+        {
+            if (argument.ValueKind == JsonValueKind.String)
+            {
+                yield return argument.GetString()!;
+                continue;
+            }
+
+            if (argument.ValueKind != JsonValueKind.Object
+                || !argument.TryGetProperty("value"u8, out var value)
+                || argument.TryGetProperty("rules"u8, out var rules) && !AreRulesAllowed(rules))
+                continue;
+
+            if (value.ValueKind == JsonValueKind.String)
+                yield return value.GetString()!;
+            else if (value.ValueKind == JsonValueKind.Array)
+                foreach (var item in value.EnumerateArray())
+                    if (item.ValueKind == JsonValueKind.String)
+                        yield return item.GetString()!;
+        }
+    }
+
+    private static bool AreRulesAllowed(JsonElement rules)
+    {
+        bool allowed = false;
+        foreach (var rule in rules.EnumerateArray())
+        {
+            if (!RuleMatches(rule))
+                continue;
+
+            allowed = rule.TryGetProperty("action"u8, out var action)
+                      && action.ValueEquals("allow"u8);
+        }
+
+        return allowed;
+    }
+
+    private static bool RuleMatches(JsonElement rule)
+    {
+        // Feature flags require launcher state (demo user, quick play, custom resolution).
+        // These arguments are added separately by ArgumentsParser, so do not enable them blindly.
+        if (rule.TryGetProperty("features"u8, out _))
+            return false;
+
+        if (!rule.TryGetProperty("os"u8, out var os))
+            return true;
+
+        if (os.TryGetProperty("name"u8, out var name)
+            && !string.Equals(name.GetString(), EnvironmentUtil.GetPlatformName(), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (os.TryGetProperty("arch"u8, out var arch))
+        {
+            string currentArch = RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X86 => "x86",
+                Architecture.X64 => "x86_64",
+                Architecture.Arm => "arm",
+                Architecture.Arm64 => "arm64",
+                _ => RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()
+            };
+            if (!string.Equals(arch.GetString(), currentArch, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        if (os.TryGetProperty("version"u8, out var version))
+        {
+            try
+            {
+                if (!Regex.IsMatch(Environment.OSVersion.VersionString, version.GetString()!))
+                    return false;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
