@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using MinecraftLaunch.Base.Interfaces;
 using System.Text.Json.Serialization;
 using MinecraftLaunch.Base.Models.SHA1;
@@ -27,7 +28,9 @@ public record MinecraftJsonEntry {
     [JsonPropertyName("inheritsFrom")] public string InheritsFrom { get; set; }
     [JsonPropertyName("jar")] public string Jar { get; set; }
     [JsonPropertyName("javaVersion")] public JsonElement JavaVersion { get; set; }
-    [JsonPropertyName("releaseTime")] public DateTime ReleaseTime { get; set; }
+    [JsonPropertyName("releaseTime")]
+    [JsonConverter(typeof(FlexibleDateTimeConverter))]
+    public DateTime ReleaseTime { get; set; }
     [JsonPropertyName("assetIndex")] public AssstIndexJsonEntry AssetIndex { get; set; }
     [JsonPropertyName("minecraftArguments")] public string MinecraftArguments { get; set; }
 }
@@ -53,6 +56,29 @@ public record OptifineMinecraftEntry {
 
 public record struct OptifineMinecraftLibrary {
     [JsonPropertyName("name")] public string Name { get; set; }
+}
+
+/// <summary>
+/// Some third-party launchers write non-RFC 3339 release times into version JSON.
+/// Release time is display metadata, so an invalid value must not prevent instance discovery.
+/// </summary>
+public sealed class FlexibleDateTimeConverter : JsonConverter<DateTime>
+{
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String &&
+            DateTime.TryParse(reader.GetString(), CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var value))
+            return value;
+
+        if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt64(out var unixMilliseconds))
+            return DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds).UtcDateTime;
+
+        return DateTime.MinValue;
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value);
 }
 
 [JsonSerializable(typeof(MinecraftJsonEntry))]

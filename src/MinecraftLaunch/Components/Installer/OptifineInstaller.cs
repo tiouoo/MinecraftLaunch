@@ -162,7 +162,7 @@ public sealed class OptifineInstaller : InstallerBase {
         if (!jsonFile.Directory!.Exists)
             jsonFile.Directory.Create();
 
-        var time = Minecraft.ReleaseTime.ToString("s");
+        var time = minecraft.ReleaseTime.ToString("s");
         var jsonEntry = new OptifineMinecraftEntry {
             Id = entryId,
             InheritsFrom = minecraft.Id,
@@ -229,6 +229,8 @@ public sealed class OptifineInstaller : InstallerBase {
         process.BeginOutputReadLine();
 
         await process.WaitForExitAsync(cancellationToken);
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"OptiFine 安装处理器退出，退出代码：{process.ExitCode}。");
         ReportProgress(InstallStep.RunInstallProcessor, 1.0d, TaskStatus.Running, 1, 1);
     }
 
