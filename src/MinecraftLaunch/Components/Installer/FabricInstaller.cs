@@ -7,7 +7,6 @@ using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
 using MinecraftLaunch.Utilities;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace MinecraftLaunch.Components.Installer;
 
@@ -15,7 +14,7 @@ public sealed class FabricInstaller : InstallerBase {
     public string CustomId { get; init; }
     public FabricInstallEntry Entry { get; init; }
     public override string MinecraftFolder { get; init; }
-    public MinecraftEntry InheritedMinecraft { get; set; }
+    public MinecraftEntry InheritedMinecraft { get; init; }
 
     public static FabricInstaller Create(string mcFolder, FabricInstallEntry installEntry, string customId = default) {
         return new FabricInstaller {
@@ -95,11 +94,9 @@ public sealed class FabricInstaller : InstallerBase {
         if (!jsonFile.Directory!.Exists)
             jsonFile.Directory.Create();
 
-        var json = JsonNode.Parse(doc.RootElement.GetRawText())
-            ?? throw new InvalidDataException("The Fabric profile is invalid.");
-        json["id"] = instanceId;
-        json["inheritsFrom"] = entry.Id;
-        await File.WriteAllTextAsync(jsonFile.FullName, json.ToJsonString(), cancellationToken);
+        await using var output = File.OpenWrite(jsonFile.FullName);
+        await JsonSerializer.SerializeAsync(output, doc, JsonDocumentSerializeContext.Default.JsonDocument,
+            cancellationToken);
         
         ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
         return jsonFile;

@@ -6,18 +6,15 @@ using MinecraftLaunch.Components.Downloader;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace MinecraftLaunch.Components.Installer;
 
 public sealed class VanillaInstaller : InstallerBase {
-    public string CustomId { get; init; }
     public VersionManifestEntry Entry { get; init; }
     public override string MinecraftFolder { get; init; }
 
-    public static VanillaInstaller Create(string minecraftFolder, VersionManifestEntry entry, string customId = null) {
+    public static VanillaInstaller Create(string minecraftFolder, VersionManifestEntry entry) {
         return new VanillaInstaller {
-            CustomId = customId,
             Entry = entry,
             MinecraftFolder = minecraftFolder
         };
@@ -70,22 +67,13 @@ public sealed class VanillaInstaller : InstallerBase {
         string requestUrl = DownloadManager.BmclApi.TryFindUrl(Entry.Url);
         await using var jsonStream = await requestUrl.GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
 
-        var instanceId = CustomId ?? Entry.Id;
-        var jsonPath = new FileInfo(Path.Combine(MinecraftFolder, "versions", instanceId, $"{instanceId}.json"));
+        var jsonPath = new FileInfo(Path.Combine(MinecraftFolder, "versions", Entry.Id, $"{Entry.Id}.json"));
         if (!jsonPath.Directory.Exists) {
             jsonPath.Directory.Create();
         }
 
-        if (CustomId is null) {
-            await using var output = File.OpenWrite(jsonPath.FullName);
-            await jsonStream.CopyToAsync(output, cancellationToken);
-        } else {
-            var json = await JsonNode.ParseAsync(jsonStream, cancellationToken: cancellationToken)
-                ?? throw new InvalidDataException("The version metadata is invalid.");
-            json["id"] = instanceId;
-            json["clientVersion"] = Entry.Id;
-            await File.WriteAllTextAsync(jsonPath.FullName, json.ToJsonString(), cancellationToken);
-        }
+        await using var output = File.OpenWrite(jsonPath.FullName);
+        await jsonStream.CopyToAsync(output, cancellationToken);
         ReportProgress(InstallStep.DownloadVersionJson, 0.3d, TaskStatus.Running, 1, 1);
 
         return jsonPath;

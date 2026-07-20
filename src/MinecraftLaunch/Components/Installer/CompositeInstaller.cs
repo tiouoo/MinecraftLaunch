@@ -82,8 +82,7 @@ public sealed class CompositeInstaller : InstallerBase {
 
         foreach (var entry in entries) {
             if (entry is VersionManifestEntry ve) {
-                var parentId = string.IsNullOrWhiteSpace(CustomId) ? null : $"{CustomId}-base";
-                VanillaInstaller = VanillaInstaller.Create(MinecraftFolder, ve, parentId);
+                VanillaInstaller = VanillaInstaller.Create(MinecraftFolder, ve);
                 continue;
             }
 
@@ -125,18 +124,6 @@ public sealed class CompositeInstaller : InstallerBase {
     private Task<MinecraftEntry> InstallPrimaryModLoaderAsync(MinecraftEntry entry, CancellationToken cancellationToken) {
         if (PrimaryInstaller is null) {
             return Task.FromResult(entry);
-        }
-
-        switch (PrimaryInstaller) {
-            case ForgeInstaller forge:
-                forge.InheritedMinecraft = entry;
-                break;
-            case FabricInstaller fabric:
-                fabric.InheritedMinecraft = entry;
-                break;
-            case QuiltInstaller quilt:
-                quilt.InheritedMinecraft = entry;
-                break;
         }
 
         PrimaryInstaller.ProgressChanged += (_, arg) =>
