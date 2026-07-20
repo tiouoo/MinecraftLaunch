@@ -65,11 +65,11 @@ public sealed class ForgeInstaller : InstallerBase {
         }
         catch (Exception ex)
         {
-            ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Canceled, 1, 1);
+            ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Faulted, 1, 1);
             ReportCompleted(false, ex);
             throw;
         }
-        return entry ?? throw new ArgumentNullException(nameof(entry), "Unexpected null reference to variable");
+        return entry;
     }
 
     public static async Task<IEnumerable<ForgeInstallEntry>> EnumerableForgeAsync(string mcVersion, bool isNeoforge = false, CancellationToken cancellationToken = default) {

@@ -46,13 +46,14 @@ public sealed class QuiltInstaller : InstallerBase {
             entry = ParseModifiedMinecraft(jsonFile, cancellationToken);
             await CompleteQuiltLibrariesAsync(entry, cancellationToken);
         } catch (Exception ex) {
-            ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Canceled, 1, 1);
+            ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Faulted, 1, 1);
             ReportCompleted(false, ex);
+            throw;
         }
 
         ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
         ReportCompleted(true);
-        return entry ?? throw new ArgumentNullException(nameof(entry), "Unexpected null reference to variable");
+        return entry;
     }
 
     #region Privates

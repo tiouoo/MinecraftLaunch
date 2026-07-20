@@ -45,11 +45,12 @@ public sealed class CompositeInstaller : InstallerBase {
             ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
             ReportCompleted(true);
         } catch (Exception ex) {
-            ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Canceled, 1, 1);
+            ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Faulted, 1, 1);
             ReportCompleted(false, ex);
+            throw;
         }
 
-        return minecraft ?? throw new ArgumentNullException(nameof(minecraft), "Unexpected null reference to variable");
+        return minecraft;
     }
 
     #region Privates
@@ -57,13 +58,29 @@ public sealed class CompositeInstaller : InstallerBase {
     private void ParseInstaller(CancellationToken cancellationToken) {
         ReportProgress(InstallStep.ParseInstaller, 0.1d, TaskStatus.Running, 1, 0);
 
-        if (!InstallEntries.Any())
-            throw new ArgumentNullException();
+        var entries = InstallEntries?.ToArray()
+            ?? throw new ArgumentNullException(nameof(InstallEntries));
 
-        if (InstallEntries.Count() > 3)
-            throw new ArgumentOutOfRangeException();
+        if (entries.Length == 0)
+            throw new ArgumentException("At least one install entry is required.", nameof(InstallEntries));
 
-        foreach (var entry in InstallEntries) {
+        if (entries.Length > 3)
+            throw new ArgumentOutOfRangeException(nameof(InstallEntries), "Only vanilla, one primary loader, and OptiFine are supported.");
+
+        var vanillaEntries = entries.OfType<VersionManifestEntry>().ToArray();
+        var primaryEntries = entries.Where(static x => x is ForgeInstallEntry or FabricInstallEntry or QuiltInstallEntry).ToArray();
+        var optifineEntries = entries.OfType<OptifineInstallEntry>().ToArray();
+        if (vanillaEntries.Length != 1 || primaryEntries.Length > 1 || optifineEntries.Length > 1)
+            throw new ArgumentException("Select exactly one vanilla version, at most one primary loader, and at most one OptiFine version.", nameof(InstallEntries));
+
+        var minecraftVersion = vanillaEntries[0].McVersion;
+        if (entries.OfType<IInstallEntry>().Any(x => x is not VersionManifestEntry && x.McVersion != minecraftVersion))
+            throw new ArgumentException("All selected loaders must target the selected Minecraft version.", nameof(InstallEntries));
+
+        if (optifineEntries.Length == 1 && primaryEntries.SingleOrDefault() is ForgeInstallEntry { IsNeoforge: true })
+            throw new NotSupportedException("OptiFine is not compatible with NeoForge. Use an alternative such as Embeddium instead.");
+
+        foreach (var entry in entries) {
             if (entry is VersionManifestEntry ve) {
                 var parentId = string.IsNullOrWhiteSpace(CustomId) ? null : $"{CustomId}-base";
                 VanillaInstaller = VanillaInstaller.Create(MinecraftFolder, ve, parentId);

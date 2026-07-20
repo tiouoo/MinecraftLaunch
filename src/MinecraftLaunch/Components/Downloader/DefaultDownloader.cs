@@ -113,7 +113,8 @@ public class DefaultDownloader : IDownloader {
             for (int attempt = 0; attempt < DownloadManager.MaxRetryCount; attempt++) {
                 try {
                     string url = request.Url;
-                    var (response, finalUrl) = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
+                    using var response = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
+                    var finalUrl = response.RequestMessage?.RequestUri?.AbsoluteUri ?? url;
 
                     var states = new DownloadStates {
                         Url = finalUrl,
@@ -137,7 +138,7 @@ public class DefaultDownloader : IDownloader {
                         }
                     }
 
-                    await DownloadSinglePartAsync(states, request, cancellationToken).ConfigureAwait(false);
+                    await DownloadSinglePartAsync(states, request, response, cancellationToken).ConfigureAwait(false);
                     Interlocked.Increment(ref downloadStates.DownloadedCount);
                     request.Completed?.Invoke(EventArgs.Empty);
                     break;
@@ -163,7 +164,8 @@ public class DefaultDownloader : IDownloader {
 
     private static async Task DownloadFileDriverAsync(DownloadRequest request, CancellationToken cancellationToken) {
         string url = request.Url;
-        var (response, finalUrl) = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
+        using var response = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
+        var finalUrl = response.RequestMessage?.RequestUri?.AbsoluteUri ?? url;
 
         var states = new DownloadStates {
             Url = finalUrl,
@@ -190,25 +192,20 @@ public class DefaultDownloader : IDownloader {
                 }
             }
 
-            await DownloadSinglePartAsync(states, request, cancellationToken).ConfigureAwait(false);
+            await DownloadSinglePartAsync(states, request, response, cancellationToken).ConfigureAwait(false);
         } finally {
             Interlocked.Exchange(ref states.IsCompleted, 1);
             await progressTask.ConfigureAwait(false);
         }
     }
 
-    private static async Task<(HttpResponseMessage, string)> PrepareForDownloadAsync(string url, CancellationToken cancellationToken) {
-        var response = await HttpUtil.FlurlClient.Request(url)
-            .AllowAnyHttpStatus()
-            .HeadAsync(HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+    private static async Task<HttpResponseMessage> PrepareForDownloadAsync(string url, CancellationToken cancellationToken) {
+        // Some download sources, including OptiFine, do not support HEAD reliably.
+        // Reuse this GET response for a single-part download instead of probing then downloading twice.
+        var response = await HttpUtil.DownloaderClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
-
-        if (response.StatusCode == 302) // 即 302
-            return await PrepareForDownloadAsync(response.ResponseMessage.Headers.Location.AbsoluteUri, cancellationToken)
-                .ConfigureAwait(false);
-
-        response.ResponseMessage.EnsureSuccessStatusCode();
-        return (response.ResponseMessage, url);
+        response.EnsureSuccessStatusCode();
+        return response;
     }
 
     private static async Task DownloadMultiPartAsync(DownloadStates states, DownloadRequest request, CancellationToken cancellationToken) {
@@ -227,10 +224,7 @@ public class DefaultDownloader : IDownloader {
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    private static async Task DownloadSinglePartAsync(DownloadStates states, DownloadRequest request, CancellationToken cancellationToken) {
-        using var response = await HttpUtil.DownloaderClient.GetAsync(states.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
+    private static async Task DownloadSinglePartAsync(DownloadStates states, DownloadRequest request, HttpResponseMessage response, CancellationToken cancellationToken) {
         await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using var fileStream = new FileStream(states.LocalPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, BufferSize, true);
 

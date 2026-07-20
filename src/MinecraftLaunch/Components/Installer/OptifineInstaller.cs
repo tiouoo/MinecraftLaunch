@@ -59,6 +59,7 @@ public sealed class OptifineInstaller : InstallerBase {
             inheritedEntry = ParseMinecraft(cancellationToken);
             optifinePackageFile = await DownloadOptifinePackageAsync(cancellationToken);
             if (Minecraft is ModifiedMinecraftEntry modifiedMinecraft) {
+                EnsureCompatibleModLoader(modifiedMinecraft);
                 CopyToMods(optifinePackageFile);
 
                 ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
@@ -76,11 +77,12 @@ public sealed class OptifineInstaller : InstallerBase {
             ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
             ReportCompleted(true);
         } catch (Exception ex) {
-            ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Canceled, 1, 1);
+            ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Faulted, 1, 1);
             ReportCompleted(false, ex);
+            throw;
         }
 
-        return entry ?? throw new ArgumentNullException(nameof(entry), "Unexpected null reference to variable");
+        return entry;
     }
 
     #region Privates
@@ -110,8 +112,13 @@ public sealed class OptifineInstaller : InstallerBase {
         var downloadRequest = new DownloadRequest(packageUrl,
             packageFile.FullName);
 
-        await new DefaultDownloader()
+        var downloadResult = await new DefaultDownloader()
             .DownloadAsync(downloadRequest, cancellationToken);
+        if (downloadResult.Type is DownloadResultType.Failed)
+            throw new InvalidOperationException($"Unable to download OptiFine {Entry.FileName}.", downloadResult.Exception);
+
+        if (!packageFile.Exists)
+            throw new FileNotFoundException("The OptiFine package was not created after downloading.", packageFile.FullName);
 
         ReportProgress(InstallStep.DownloadPackage, 0.3d, TaskStatus.Running, 1, 1);
         return packageFile;
@@ -124,6 +131,14 @@ public sealed class OptifineInstaller : InstallerBase {
             fileInfo.Directory.Create();
 
         packageInfo.MoveTo(fileInfo.FullName, true);
+    }
+
+    private static void EnsureCompatibleModLoader(ModifiedMinecraftEntry minecraft) {
+        if (minecraft.ModLoaders.Any(x => x.Type == ModLoaderType.NeoForge))
+            throw new NotSupportedException("OptiFine is not compatible with NeoForge. Use an alternative such as Embeddium instead.");
+
+        if (minecraft.ModLoaders.Any(x => x.Type is not ModLoaderType.Forge))
+            throw new NotSupportedException("OptiFine can only be installed as a mod into a Forge instance.");
     }
 
     private (ZipArchive package, string launchwrapperVersion, string launchwrapperName) ParseOptifinePackage(string packageFilePath, CancellationToken cancellationToken) {
