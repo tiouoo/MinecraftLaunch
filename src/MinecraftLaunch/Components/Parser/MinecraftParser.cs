@@ -56,7 +56,17 @@ public sealed class MinecraftParser {
             if (File.Exists(Path.Combine(dir.FullName, ".pclignore")))
                 continue;
 
-            var entry = Parse(dir, list, out bool inheritedInstanceAlreadyFound);
+            MinecraftEntry entry;
+            bool inheritedInstanceAlreadyFound;
+            try {
+                entry = Parse(dir, list, out inheritedInstanceAlreadyFound);
+            } catch (DirectoryNotFoundException) {
+                // A launcher or the user may remove a version while it is being scanned.
+                continue;
+            } catch (FileNotFoundException) {
+                // Incomplete version folders do not represent launchable instances.
+                continue;
+            }
             int index = list.FindIndex(i => i.Id == entry.Id);
             if (index != -1)
             {
