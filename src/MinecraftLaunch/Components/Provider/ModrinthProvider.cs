@@ -72,6 +72,16 @@ public sealed class ModrinthProvider {
         return jsonArray.RootElement.EnumerateArrayThenSelectToArray(ParseFile);
     }
 
+    public async Task<ModrinthResourceFile> GetModFileByVersionIdAsync(string versionId,
+        CancellationToken cancellationToken = default) {
+        ArgumentException.ThrowIfNullOrEmpty(versionId);
+
+        var request = HttpUtil.Request(ModrinthApi, "version", versionId);
+        await using var json = await request.GetStreamAsync(cancellationToken: cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(json, cancellationToken: cancellationToken);
+        return ParseFile(doc.RootElement);
+    }
+
     public async Task<ModrinthResource> SearchByProjectIdAsync(string projectId, CancellationToken cancellationToken = default) {
         var url = new Url(ModrinthApi)
             .AppendPathSegments("project", projectId);
