@@ -16,13 +16,16 @@ public static class PathExtension {
     /// <param name="entry">The game entry.</param>
     /// <returns>The path of the libraries directory.</returns>
     public static string ToLibrariesPath(this MinecraftEntry entry) =>
-        Path.Combine(entry.MinecraftFolderPath, "libraries");
+        entry.LibrariesDirectoryPath ?? Path.Combine(entry.MinecraftFolderPath, "libraries");
+
+    public static string ToAssetsPath(this MinecraftEntry entry) =>
+        entry.AssetsDirectoryPath ?? Path.Combine(entry.MinecraftFolderPath, "assets");
 
     public static string ToNativesPath(this MinecraftEntry entry) =>
-        Path.Combine(entry.MinecraftFolderPath, "versions", entry.Id, "natives");
+        entry.NativesDirectoryPath ?? Path.Combine(entry.MinecraftFolderPath, "versions", entry.Id, "natives");
 
     public static string ToWorkingPath(this MinecraftEntry entry, bool isEnableIndependency) => isEnableIndependency
-        ? Path.Combine(entry.MinecraftFolderPath, "versions", entry.Id)
+        ? entry.GameDirectoryPath ?? entry.VersionDirectoryPath ?? Path.Combine(entry.MinecraftFolderPath, "versions", entry.Id)
         : entry.MinecraftFolderPath;
 
     public static string ToLogsPath(this MinecraftEntry entry, bool isEnableIndependency) =>

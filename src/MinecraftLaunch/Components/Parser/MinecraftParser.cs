@@ -166,6 +166,7 @@ public sealed class MinecraftParser {
 
         static bool CheckIfOver113(JsonElement argumentElement)
         {
+            if (argumentElement.ValueKind != JsonValueKind.Object) return false;
             if (!argumentElement.TryGetProperty("game"u8, out var gameElement)) return false;
             foreach (var item in gameElement.EnumerateArray())
             {

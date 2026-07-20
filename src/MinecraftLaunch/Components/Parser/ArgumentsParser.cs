@@ -219,8 +219,8 @@ public sealed class ArgumentsParser
             { "${user_properties}", "{}" },
             { "${version_name}", MinecraftEntry.Id.ToPath() },
             { "${version_type}", versionType },
-            { "${game_assets}", Path.Combine(MinecraftEntry.MinecraftFolderPath, "assets").ToPath() },
-            { "${assets_root}", Path.Combine(MinecraftEntry.MinecraftFolderPath, "assets").ToPath() },
+            { "${game_assets}", MinecraftEntry.ToAssetsPath().ToPath() },
+            { "${assets_root}", MinecraftEntry.ToAssetsPath().ToPath() },
             { "${game_directory}", MinecraftEntry.ToWorkingPath(LaunchConfig.IsEnableIndependency).ToPath() },
             { "${assets_index_name}", assetIndexFilename },
         };

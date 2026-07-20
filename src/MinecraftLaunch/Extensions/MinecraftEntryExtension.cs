@@ -63,7 +63,9 @@ public static class MinecraftEntryExtension {
             throw new InvalidDataException("Invalid client info");
 
         return new MinecraftClient {
-            MinecraftFolderPath = entry.MinecraftFolderPath,
+            MinecraftFolderPath = Path.GetDirectoryName(entry.VersionDirectoryPath) is { } versionsPath
+                ? Directory.GetParent(versionsPath)?.FullName ?? entry.MinecraftFolderPath
+                : entry.MinecraftFolderPath,
             ClientId = Path.GetFileNameWithoutExtension(clientJarPath),
             Url = url,
             Sha1 = sha1.Value,
@@ -94,7 +96,8 @@ public static class MinecraftEntryExtension {
             Url = url,
             Size = size,
             Sha1 = sha1,
-            MinecraftFolderPath = minecraftEntry.MinecraftFolderPath,
+            MinecraftFolderPath = Path.GetDirectoryName(minecraftEntry.AssetsDirectoryPath) ??
+                                  minecraftEntry.MinecraftFolderPath,
         };
     }
 
@@ -113,7 +116,7 @@ public static class MinecraftEntryExtension {
 
             foreach (ZipArchiveEntry entry in zip.Entries) {
                 if (Path.HasExtension(entry.FullName)) {
-                    var toExtract = new FileInfo(Path.Combine(minecraftEntry.MinecraftFolderPath, "versions", minecraftEntry.Id, "natives", entry.Name));
+                    var toExtract = new FileInfo(Path.Combine(minecraftEntry.ToNativesPath(), entry.Name));
                     toExtract.Directory?.Create();
                     if (!toExtract.Exists) {
                         entry.ExtractToFile(toExtract.FullName, true);
@@ -138,7 +141,7 @@ public static class MinecraftEntryExtension {
 
             foreach (ZipArchiveEntry entry in zip.Entries) {
                 if (Path.HasExtension(entry.FullName)) {
-                    var toExtract = new FileInfo(Path.Combine(minecraftEntry.MinecraftFolderPath, "versions", minecraftEntry.Id, "natives", entry.Name));
+                    var toExtract = new FileInfo(Path.Combine(minecraftEntry.ToNativesPath(), entry.Name));
                     toExtract.Directory?.Create();
                     if (!toExtract.Exists) {
                         entry.ExtractToFile(toExtract.FullName, true);

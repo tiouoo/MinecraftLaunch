@@ -25,6 +25,12 @@ public abstract class MinecraftEntry {
     public required string AssetIndexJsonPath { get; init; }
     public required string MinecraftFolderPath { get; init; }
 
+    public string VersionDirectoryPath { get; init; }
+    public string GameDirectoryPath { get; init; }
+    public string AssetsDirectoryPath { get; init; }
+    public string LibrariesDirectoryPath { get; init; }
+    public string NativesDirectoryPath { get; init; }
+
     public bool IsVanilla => this is VanillaMinecraftEntry;
 
     private static bool IsLibraryEnabled(IEnumerable<RuleEntry> rules) {

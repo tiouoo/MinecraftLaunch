@@ -26,7 +26,15 @@ public sealed class MinecraftRunner {
         return new MinecraftProcess(LaunchConfig, minecraft, arguments);
     }
 
-    public MinecraftProcess Run(MinecraftEntry minecraft) => Run(minecraft.Id);
+    public MinecraftProcess Run(MinecraftEntry minecraft) {
+        ArgumentsParser parser = new(minecraft, LaunchConfig);
+        IEnumerable<string> arguments = parser.Parse();
+
+        if (string.IsNullOrEmpty(LaunchConfig.NativesFolder))
+            minecraft.ExtractNatives(parser.GetNatives());
+
+        return new MinecraftProcess(LaunchConfig, minecraft, arguments);
+    }
 
     public async Task<MinecraftProcess> RunAsync(string id, CancellationToken cancellationToken = default) {
         MinecraftEntry minecraft = _minecraftParser.GetMinecraft(id);
@@ -39,5 +47,13 @@ public sealed class MinecraftRunner {
         return new MinecraftProcess(LaunchConfig, minecraft, arguments);
     }
 
-    public Task<MinecraftProcess> RunAsync(MinecraftEntry minecraft, CancellationToken cancellationToken = default) => RunAsync(minecraft.Id, cancellationToken);
+    public async Task<MinecraftProcess> RunAsync(MinecraftEntry minecraft, CancellationToken cancellationToken = default) {
+        ArgumentsParser parser = new(minecraft, LaunchConfig);
+        IEnumerable<string> arguments = parser.Parse();
+
+        if (string.IsNullOrEmpty(LaunchConfig.NativesFolder))
+            await minecraft.ExtractNativesAsync(parser.GetNatives(), cancellationToken);
+
+        return new MinecraftProcess(LaunchConfig, minecraft, arguments);
+    }
 }
