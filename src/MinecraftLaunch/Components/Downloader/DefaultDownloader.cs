@@ -113,8 +113,7 @@ public class DefaultDownloader : IDownloader {
             for (int attempt = 0; attempt < DownloadManager.MaxRetryCount; attempt++) {
                 try {
                     string url = request.Url;
-                    using var response = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
-                    var finalUrl = response.RequestMessage?.RequestUri?.AbsoluteUri ?? url;
+                    var (response, finalUrl) = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
 
                     var states = new DownloadStates {
                         Url = finalUrl,
@@ -138,7 +137,7 @@ public class DefaultDownloader : IDownloader {
                         }
                     }
 
-                    await DownloadSinglePartAsync(states, request, response, cancellationToken).ConfigureAwait(false);
+                    await DownloadSinglePartAsync(states, request, cancellationToken).ConfigureAwait(false);
                     Interlocked.Increment(ref downloadStates.DownloadedCount);
                     request.Completed?.Invoke(EventArgs.Empty);
                     break;
@@ -164,8 +163,7 @@ public class DefaultDownloader : IDownloader {
 
     private static async Task DownloadFileDriverAsync(DownloadRequest request, CancellationToken cancellationToken) {
         string url = request.Url;
-        using var response = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
-        var finalUrl = response.RequestMessage?.RequestUri?.AbsoluteUri ?? url;
+        var (response, finalUrl) = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
 
         var states = new DownloadStates {
             Url = finalUrl,
@@ -192,20 +190,43 @@ public class DefaultDownloader : IDownloader {
                 }
             }
 
-            await DownloadSinglePartAsync(states, request, response, cancellationToken).ConfigureAwait(false);
+            await DownloadSinglePartAsync(states, request, cancellationToken).ConfigureAwait(false);
         } finally {
             Interlocked.Exchange(ref states.IsCompleted, 1);
             await progressTask.ConfigureAwait(false);
         }
     }
 
-    private static async Task<HttpResponseMessage> PrepareForDownloadAsync(string url, CancellationToken cancellationToken) {
-        // Some download sources, including OptiFine, do not support HEAD reliably.
-        // Reuse this GET response for a single-part download instead of probing then downloading twice.
-        var response = await HttpUtil.DownloaderClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        return response;
+    private static async Task<(HttpResponseMessage, string)> PrepareForDownloadAsync(string url, CancellationToken cancellationToken) {
+        const int maxRedirects = 10;
+        var currentUrl = url;
+
+        for (var redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
+            var response = await HttpUtil.FlurlClient.Request(currentUrl)
+                .AllowAnyHttpStatus()
+                .HeadAsync(HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            var message = response.ResponseMessage;
+
+            if ((int)message.StatusCode is >= 300 and < 400 && message.Headers.Location is { } location) {
+                if (redirectCount == maxRedirects) {
+                    message.Dispose();
+                    throw new HttpRequestException($"Too many redirects while downloading {url}");
+                }
+
+                var nextUrl = location.IsAbsoluteUri
+                    ? location.AbsoluteUri
+                    : new Uri(new Uri(currentUrl), location).AbsoluteUri;
+                message.Dispose();
+                currentUrl = nextUrl;
+                continue;
+            }
+
+            message.EnsureSuccessStatusCode();
+            return (message, currentUrl);
+        }
+
+        throw new HttpRequestException($"Too many redirects while downloading {url}");
     }
 
     private static async Task DownloadMultiPartAsync(DownloadStates states, DownloadRequest request, CancellationToken cancellationToken) {
@@ -224,7 +245,10 @@ public class DefaultDownloader : IDownloader {
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    private static async Task DownloadSinglePartAsync(DownloadStates states, DownloadRequest request, HttpResponseMessage response, CancellationToken cancellationToken) {
+    private static async Task DownloadSinglePartAsync(DownloadStates states, DownloadRequest request, CancellationToken cancellationToken) {
+        using var response = await HttpUtil.DownloaderClient.GetAsync(states.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
         await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using var fileStream = new FileStream(states.LocalPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, BufferSize, true);
 

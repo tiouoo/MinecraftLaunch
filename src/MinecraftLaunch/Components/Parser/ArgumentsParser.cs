@@ -284,7 +284,8 @@ internal sealed class GameArgumentParser
             }
         }
 
-        if (!gameJsonEntry.Arguments.TryGetProperty("game"u8,out var gameElement))
+        if (gameJsonEntry.Arguments.ValueKind != JsonValueKind.Object ||
+            !gameJsonEntry.Arguments.TryGetProperty("game"u8,out var gameElement))
             yield break;
         
 
@@ -304,7 +305,8 @@ internal sealed class JvmArgumentParser
 {
     public static IEnumerable<string> Parse(MinecraftJsonEntry gameJsonEntry)
     {
-        if (!gameJsonEntry.Arguments.TryGetProperty("jvm"u8,out var jvmElement))
+        if (gameJsonEntry.Arguments.ValueKind != JsonValueKind.Object ||
+            !gameJsonEntry.Arguments.TryGetProperty("jvm"u8,out var jvmElement))
         {
             yield return "-Djava.library.path=${natives_directory}";
             yield return "-Dminecraft.launcher.brand=${launcher_name}";
