@@ -74,23 +74,34 @@ public sealed class CurseforgeProvider {
 
     public async Task<IEnumerable<CurseforgeResourceFile>> GetModFilesAsync(long modId,
         CancellationToken cancellationToken = default) {
-        const int pageSize = 50;
-        var files = new List<CurseforgeResourceFile>();
-        for (var index = 0; ; index += pageSize) {
+        const int pageSize = 20;
+        const int maximumConcurrentRequests = 40;
+        async Task<(CurseforgeResourceFile[] Files, int TotalCount)> GetPageAsync(int index) {
             var url = new Url(CurseforgeApi).AppendPathSegments("mods", modId, "files")
                 .SetQueryParams(new { index, pageSize });
             await using var stream = await CreateRequest(url).GetStreamAsync(cancellationToken: cancellationToken);
             using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
             var page = doc.RootElement.GetProperty("data"u8).EnumerateArrayThenSelectToArray(ParseFile);
-            files.AddRange(page);
-
             var totalCount = doc.RootElement.TryGetProperty("pagination"u8, out var pagination) &&
-                             pagination.TryGetProperty("totalCount"u8, out var total)
+                              pagination.TryGetProperty("totalCount"u8, out var total)
                 ? total.GetInt32()
-                : files.Count;
-            if (files.Count >= totalCount || page.Length < pageSize)
-                return files;
+                : index + page.Length;
+            return (page, totalCount);
         }
+
+        var firstPage = await GetPageAsync(0);
+        if (firstPage.Files.Length >= firstPage.TotalCount || firstPage.Files.Length < pageSize)
+            return firstPage.Files;
+
+        var pages = new List<CurseforgeResourceFile[]> { firstPage.Files };
+        var offsets = Enumerable.Range(1, (firstPage.TotalCount + pageSize - 1) / pageSize - 1)
+            .Select(page => page * pageSize).ToArray();
+        foreach (var batch in offsets.Chunk(maximumConcurrentRequests))
+        {
+            var results = await Task.WhenAll(batch.Select(GetPageAsync));
+            pages.AddRange(results.Select(result => result.Files));
+        }
+        return pages.SelectMany(page => page).Take(firstPage.TotalCount).ToArray();
     }
 
     public async Task<IEnumerable<CurseforgeResource>> GetFeaturedResourcesAsync(CancellationToken cancellationToken = default) {
