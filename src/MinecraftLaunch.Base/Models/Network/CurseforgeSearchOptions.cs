@@ -3,7 +3,8 @@ using MinecraftLaunch.Base.Enums;
 namespace MinecraftLaunch.Base.Models.Network;
 
 public record CurseforgeSearchOptions {
-    public int ClassId { get; set; } = 6; // 默认为模组类别
+    public int GameId { get; set; } = 432;
+    public int? ClassId { get; set; } = 6; // 默认为模组类别
     public int CategoryId { get; set; } = 0;
 
     public string GameVersion { get; set; }

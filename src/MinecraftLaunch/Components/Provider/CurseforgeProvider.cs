@@ -185,15 +185,16 @@ public sealed class CurseforgeProvider {
         var url = new Url(CurseforgeApi)
             .AppendPathSegment("mods/search")
             .SetQueryParams(new {
-                gameId = 432,
+                gameId = searchOptions.GameId,
                 sortOrder = searchOptions.SortOrder is SortOrder.Desc ? "desc" : "asc",
                 sortField = searchOptions.SortField,
-                classId = searchOptions.ClassId,
                 gameVersion = searchOptions.GameVersion,
                 searchFilter = HttpUtility.UrlEncode(searchOptions.SearchFilter),
                 index = Math.Max(0, searchOptions.Index),
                 pageSize = Math.Clamp(searchOptions.PageSize, 1, 50)
             });
+        if (searchOptions.ClassId is int classId)
+            url.SetQueryParam("classId", classId);
         if (searchOptions.CategoryId > 0)
             url.SetQueryParam("categoryId", searchOptions.CategoryId);
 
