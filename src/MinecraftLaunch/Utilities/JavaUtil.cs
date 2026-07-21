@@ -61,13 +61,13 @@ public static partial class JavaUtil {
             yield break;
         }
 
-        using var process = Process.Start(new ProcessStartInfo("whereis") {
+        using var process = Process.Start(new ProcessStartInfo("which") {
             CreateNoWindow = true,
             UseShellExecute = false,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
             ArgumentList = {
-                "/b",
+                "-a",
                 "java"
             },
         });
@@ -75,21 +75,15 @@ public static partial class JavaUtil {
         if (process == null)
             yield break;
 
-        do {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var line = process.StandardOutput.ReadLine();
-            if (string.IsNullOrEmpty(line) || !File.Exists(line))
-                continue;
-
-            yield return await GetJavaInfoAsync(line, cancellationToken);
-        } while (!process.HasExited);
-
+        var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
-        var lastLine = await process.StandardOutput.ReadLineAsync(cancellationToken);
 
-        if (!string.IsNullOrEmpty(lastLine) || File.Exists(lastLine))
-            yield return await GetJavaInfoAsync(lastLine, cancellationToken)!;
+        foreach (var path in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                     .Distinct(StringComparer.Ordinal)) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (File.Exists(path))
+                yield return await GetJavaInfoAsync(path, cancellationToken);
+        }
     }
 
     #region Privates
