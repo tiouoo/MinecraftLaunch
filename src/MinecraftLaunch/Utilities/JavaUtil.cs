@@ -26,12 +26,18 @@ public static partial class JavaUtil {
             RedirectStandardOutput = true
         });
 
-        string text = process.StandardError.ReadToEnd();
-        if (string.IsNullOrEmpty(text))
-            ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        string text = await process.StandardError.ReadToEndAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(text))
+            text = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+
+        await process.WaitForExitAsync(cancellationToken);
+
+        var match = JavaVersionRegex().Match(text);
+        if (!match.Success)
+            return null;
 
         bool is64bit = text.Contains("64-bit", StringComparison.OrdinalIgnoreCase);
-        string javaVersion = JavaVersionRegex().Match(text).Groups["version"].Value;
+        string javaVersion = match.Groups["version"].Value;
 
         string javaType = text.Contains("java(tm)", StringComparison.OrdinalIgnoreCase)
             ? "Java"
@@ -39,15 +45,23 @@ public static partial class JavaUtil {
                 ? "ZuluJDK"
                 : "OpenJDK";
 
-        await process.WaitForExitAsync(cancellationToken);
+        var versionParts = javaVersion.Split(['.', '_', '-', '+'], StringSplitOptions.RemoveEmptyEntries);
+        if (!int.TryParse(versionParts[0], out var firstVersionPart))
+            return null;
 
-        var versionParts = javaVersion.Split(".");
+        var majorVersion = firstVersionPart;
+        if (firstVersionPart == 1)
+        {
+            if (versionParts.Length < 2 || !int.TryParse(versionParts[1], out majorVersion))
+                return null;
+        }
+
         return new JavaEntry {
             Is64bit = is64bit,
             JavaPath = javaPath,
             JavaType = javaType,
             JavaVersion = javaVersion,
-            MajorVersion = (int.Parse(versionParts[0]) == 1) ? int.Parse(versionParts[1]) : int.Parse(versionParts[0]),
+            MajorVersion = majorVersion,
         };
     }
 
@@ -88,7 +102,7 @@ public static partial class JavaUtil {
 
     #region Privates
 
-    [GeneratedRegex("(java|openjdk) version \"\\s*(?<version>\\S+)\\s*\"")]
+    [GeneratedRegex("(?im)^(?:java|openjdk)(?:\\s+version)?\\s+\\\"?(?<version>\\d+[^\\s\\\"]*)")]
     private static partial Regex JavaVersionRegex();
 
     [SupportedOSPlatform("Windows")]
