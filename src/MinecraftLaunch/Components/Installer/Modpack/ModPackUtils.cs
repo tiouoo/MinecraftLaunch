@@ -35,6 +35,8 @@ internal static class ModPackUtils {
             }
             if (!IsShouldExtract(item, overridesPrefix)) continue;
 
+            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+
             await ZipExt.ExtractToFileAsync(
                 item, targetPath, true, cancellationToken).ConfigureAwait(false);
 

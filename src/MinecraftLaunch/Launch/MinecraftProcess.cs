@@ -25,6 +25,7 @@ public sealed class MinecraftProcess : IDisposable {
                 WorkingDirectory = minecraft.ToWorkingPath(launchConfig.IsEnableIndependency),
                 Arguments = string.Join(' ', launchArgs),
                 UseShellExecute = false,
+                CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             },

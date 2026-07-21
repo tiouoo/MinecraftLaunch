@@ -30,6 +30,7 @@ public sealed class FabricInstaller : InstallerBase {
 
         var entries = (await JsonSerializer.DeserializeAsync(json,
                 FabricInstallEntryContext.Default.IEnumerableFabricInstallEntry, cancellationToken))
+            .Select(entry => entry with { RequestedMcVersion = mcVersion })
             .OrderByDescending(x => new Version(x.Loader.Version.Replace(x.Loader.Separator, ".")));
 
         return entries;
@@ -43,7 +44,7 @@ public sealed class FabricInstaller : InstallerBase {
             var inheritedEntry = ParseMinecraft(cancellationToken);
 
             var jsonFile = await DownloadVersionJsonAsync(inheritedEntry, cancellationToken);
-            entry = ParseModifiedMinecraft(jsonFile, cancellationToken);
+            entry = ParseModifiedMinecraft(jsonFile, inheritedEntry, cancellationToken);
             await CompleteFabricLibrariesAsync(entry, cancellationToken);
         } catch (Exception ex) {
             ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Faulted, 1, 1);
@@ -118,9 +119,10 @@ public sealed class FabricInstaller : InstallerBase {
         //    throw new InvalidOperationException("Some dependent files encountered errors during download");
     }
 
-    private static ModifiedMinecraftEntry ParseModifiedMinecraft(FileInfo file, CancellationToken cancellationToken) {
+    private static ModifiedMinecraftEntry ParseModifiedMinecraft(FileInfo file, MinecraftEntry inheritedEntry,
+        CancellationToken cancellationToken) {
         cancellationToken.ThrowIfCancellationRequested();
-        var entry = MinecraftParser.Parse(file.Directory, null, out  _) as ModifiedMinecraftEntry;
+        var entry = MinecraftParser.Parse(file.Directory, [inheritedEntry], out _) as ModifiedMinecraftEntry;
 
         return entry ?? throw new InvalidOperationException("An incorrect modified entry was encountered");
     }

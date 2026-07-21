@@ -8,10 +8,11 @@ namespace MinecraftLaunch.Base.Models.Network;
 public record FabricInstallEntry : IInstallEntry {
     [JsonPropertyName("loader")] public FabricMavenItem Loader { get; set; }
     [JsonPropertyName("intermediary")] public FabricMavenItem Intermediary { get; set; }
+    [JsonIgnore] public string RequestedMcVersion { get; init; }
 
     [JsonIgnore] public string BuildVersion => Loader.Version;
     [JsonIgnore] public string DisplayVersion => Loader.Version;
-    [JsonIgnore] public string McVersion => Intermediary.Version;
+    [JsonIgnore] public string McVersion => RequestedMcVersion ?? Intermediary.Version;
     [JsonIgnore] public ModLoaderType ModLoaderType => ModLoaderType.Fabric;
     [JsonIgnore] public string Description => Loader.IsStable ? $"Release" : "Preview";
 }

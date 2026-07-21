@@ -51,7 +51,7 @@ public sealed class ForgeInstaller : InstallerBase {
                     await WriteVersionJsonAndSomeDependenciesAsync(isLegacy, doc.RootElement, package,
                         cancellationToken);
 
-                entry = ParseModifiedMinecraft(forgeClientFile, cancellationToken);
+                entry = ParseModifiedMinecraft(forgeClientFile, inheritedEntry, cancellationToken);
                 await CompleteForgeDependenciesAsync(isLegacy, doc.RootElement, entry, cancellationToken);
 
                 if (!isLegacy)
@@ -317,6 +317,7 @@ public sealed class ForgeInstaller : InstallerBase {
             using var process = Process.Start(new ProcessStartInfo(JavaPath) {
                 Arguments = string.Join(" ", args),
                 UseShellExecute = false,
+                CreateNoWindow = true,
                 WorkingDirectory = MinecraftFolder,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true
@@ -339,9 +340,10 @@ public sealed class ForgeInstaller : InstallerBase {
         }
     }
 
-    private static ModifiedMinecraftEntry ParseModifiedMinecraft(FileInfo file, CancellationToken cancellationToken) {
+    private static ModifiedMinecraftEntry ParseModifiedMinecraft(FileInfo file, MinecraftEntry inheritedEntry,
+        CancellationToken cancellationToken) {
         cancellationToken.ThrowIfCancellationRequested();
-        var entry = MinecraftParser.Parse(file.Directory, null, out var _) as ModifiedMinecraftEntry;
+        var entry = MinecraftParser.Parse(file.Directory, [inheritedEntry], out var _) as ModifiedMinecraftEntry;
 
         return entry ?? throw new InvalidOperationException("An incorrect modified entry was encountered");
     }

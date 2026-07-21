@@ -29,7 +29,7 @@ public sealed class QuiltInstaller : InstallerBase {
             .GetStreamAsync(cancellationToken: cancellationToken);
 
         var entries = await JsonSerializer.DeserializeAsync(json,QuiltInstallEntryContext.Default.IEnumerableQuiltInstallEntry, cancellationToken);
-        return entries;
+        return entries.Select(entry => entry with { RequestedMcVersion = mcVersion });
     }
 
     public override async Task<MinecraftEntry> InstallAsync(CancellationToken cancellationToken = default) {
@@ -42,7 +42,7 @@ public sealed class QuiltInstaller : InstallerBase {
             inheritedEntry = ParseMinecraft(cancellationToken);
 
             var jsonFile = await DownloadVersionJsonAsync(inheritedEntry, cancellationToken);
-            entry = ParseModifiedMinecraft(jsonFile, cancellationToken);
+            entry = ParseModifiedMinecraft(jsonFile, inheritedEntry, cancellationToken);
             await CompleteQuiltLibrariesAsync(entry, cancellationToken);
         } catch (Exception ex) {
             ReportProgress(InstallStep.Interrupted, 1.0d, TaskStatus.Faulted, 1, 1);
@@ -99,9 +99,10 @@ public sealed class QuiltInstaller : InstallerBase {
         return jsonFile;
     }
 
-    private ModifiedMinecraftEntry ParseModifiedMinecraft(FileInfo file, CancellationToken cancellationToken) {
+    private ModifiedMinecraftEntry ParseModifiedMinecraft(FileInfo file, MinecraftEntry inheritedEntry,
+        CancellationToken cancellationToken) {
         cancellationToken.ThrowIfCancellationRequested();
-        var entry = MinecraftParser.Parse(file.Directory, null, out var _) as ModifiedMinecraftEntry;
+        var entry = MinecraftParser.Parse(file.Directory, [inheritedEntry], out var _) as ModifiedMinecraftEntry;
 
         return entry ?? throw new InvalidOperationException("An incorrect modified entry was encountered");
     }

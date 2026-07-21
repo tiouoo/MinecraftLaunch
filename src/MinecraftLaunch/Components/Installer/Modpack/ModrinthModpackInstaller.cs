@@ -60,6 +60,7 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
             await ExtractModpackAsync(cancellationToken);
         } catch (Exception ex) {
             ReportCompleted(false, ex);
+            throw;
         }
 
         ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);

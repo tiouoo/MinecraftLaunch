@@ -219,6 +219,7 @@ public sealed class OptifineInstaller : InstallerBase {
         using var process = Process.Start(
             new ProcessStartInfo(JavaPath) {
                 UseShellExecute = false,
+                CreateNoWindow = true,
                 WorkingDirectory = MinecraftFolder,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
