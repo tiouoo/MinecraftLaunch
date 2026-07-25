@@ -228,7 +228,7 @@ public sealed class CurseforgeProvider {
 
         try
         {
-            using var responseMessage = await CreateRequest("mods", "files", $"{fileId}")
+            using var responseMessage = await CreateRequest("mods", $"{modId}", "files", $"{fileId}")
                 .GetAsync(cancellationToken: cancellationToken);
             await using var json = await responseMessage.GetStreamAsync();
             using var doc = await JsonDocument.ParseAsync(json, cancellationToken: cancellationToken);
@@ -248,13 +248,20 @@ public sealed class CurseforgeProvider {
         CheckApiKey();
 
 
-        using var responseMessage = await CreateRequest("mods", $"{modId}", "files", $"{fileId}", "download-url")
-            .GetAsync(cancellationToken: cancellationToken);
-        await using var stream = await responseMessage.GetStreamAsync();
-        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-        // get data
-        if (!doc.RootElement.TryGetProperty("data", out var dataElement)) return string.Empty;
-        return dataElement.GetString() ?? throw new InvalidModpackFileException();
+        try {
+            using var responseMessage = await CreateRequest("mods", $"{modId}", "files", $"{fileId}", "download-url")
+                .GetAsync(cancellationToken: cancellationToken);
+            await using var stream = await responseMessage.GetStreamAsync();
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            // get data
+            if (!doc.RootElement.TryGetProperty("data", out var dataElement)) return string.Empty;
+            return dataElement.GetString() ?? throw new InvalidModpackFileException();
+        } catch (FlurlHttpException exception) when (exception.StatusCode == 403) {
+            var file = await GetModFileEntryAsync(modId, fileId, cancellationToken);
+            var fileName = file.GetProperty("fileName"u8).GetString()
+                ?? throw new InvalidModpackFileException("The modpack file name could not be read.");
+            return await TestDownloadUrlAsync(fileId, fileName, cancellationToken);
+        }
 
     }
 
@@ -262,20 +269,25 @@ public sealed class CurseforgeProvider {
         CheckApiKey();
 
         var fileIdStr = fileId.ToString();
+        if (fileIdStr.Length <= 4)
+            throw new InvalidModpackFileException("The modpack file ID is invalid.");
+
+        var encodedFileName = Uri.EscapeDataString(fileName);
         List<string> urls = [
-            $"https://edge.forgecdn.net/files/{fileIdStr[..4]}/{fileIdStr[4..]}/{fileName}",
-            $"https://mediafiles.forgecdn.net/files/{fileIdStr[..4]}/{fileIdStr[4..]}/{fileName}"
+            $"https://edge.forgecdn.net/files/{fileIdStr[..4]}/{fileIdStr[4..]}/{encodedFileName}",
+            $"https://mediafiles.forgecdn.net/files/{fileIdStr[..4]}/{fileIdStr[4..]}/{encodedFileName}"
         ];
 
         try {
             foreach (var url in urls) {
-                var response = await HttpUtil.Request(url)
-                    .HeadAsync(cancellationToken: cancellationToken);
+                try {
+                    var response = await HttpUtil.Request(url)
+                        .HeadAsync(cancellationToken: cancellationToken);
 
-                if (!response.ResponseMessage.IsSuccessStatusCode)
-                    continue;
+                    if (response.ResponseMessage.IsSuccessStatusCode)
+                        return url;
+                } catch (Exception) when (!cancellationToken.IsCancellationRequested) { }
 
-                return url;
             }
         } catch (Exception) { }
 
