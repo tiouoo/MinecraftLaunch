@@ -76,7 +76,11 @@ public sealed class MinecraftResourceDownloader {
 
         // 2. 验证依赖项
         ConcurrentBag<MinecraftDependency> invalidDeps = [];
-        Parallel.ForEach(_dependencies, new ParallelOptions { MaxDegreeOfParallelism = fileVerificationParallelism }, dep => {
+        Parallel.ForEach(_dependencies, new ParallelOptions
+        {
+            MaxDegreeOfParallelism = fileVerificationParallelism,
+            CancellationToken = cancellationToken
+        }, dep => {
             if (!VerifyDependency(dep, cancellationToken)) {
                 invalidDeps.Add(dep);
             }
