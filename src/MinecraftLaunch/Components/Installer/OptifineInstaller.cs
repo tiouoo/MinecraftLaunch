@@ -85,6 +85,9 @@ public sealed class OptifineInstaller : InstallerBase {
         return entry ?? throw new ArgumentNullException(nameof(entry), "Unexpected null reference to variable");
     }
 
+    /// <summary>提前下载加载器安装包，使其可与原版资源下载并行。</summary>
+    public Task PreloadAsync(CancellationToken cancellationToken = default) => DownloadOptifinePackageAsync(cancellationToken);
+
     #region Privates
 
     private static int GetPatchNumber(string patch) {
@@ -113,12 +116,18 @@ public sealed class OptifineInstaller : InstallerBase {
 
         string packageUrl = $"https://bmclapi2.bangbang93.com/optifine/{Entry.McVersion}/{Entry.Type}/{Entry.Patch}";
         var packageFile = new FileInfo(Path.Combine(MinecraftFolder, Entry.FileName));
+        if (packageFile.Exists) {
+            ReportProgress(InstallStep.DownloadPackage, 0.3d, TaskStatus.Running, 1, 1);
+            return packageFile;
+        }
 
         var downloadRequest = new DownloadRequest(packageUrl,
             packageFile.FullName);
 
         var result = await new DefaultDownloader()
             .DownloadAsync(downloadRequest, cancellationToken);
+        if (result.Type == DownloadResultType.Cancelled)
+            throw new OperationCanceledException(cancellationToken);
         if (result.Type is DownloadResultType.Failed)
             throw result.Exception ?? new InvalidOperationException("Failed to download the OptiFine package");
 

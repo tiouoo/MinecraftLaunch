@@ -6,8 +6,8 @@ namespace MinecraftLaunch;
 public static class DownloadManager {
     public static string CurseforgeApiKey { get; set; } = string.Empty;
 
-    public static int MaxThread { get; set; } = 64;
-    public static int MaxFragment { get; set; } = 128;
+    public static int MaxThread { get; set; } = 16;
+    public static int MaxFragment { get; set; } = 16;
     public static int MaxRetryCount { get; set; } = 8;
 
     public static bool IsEnableMirror { get; set; }

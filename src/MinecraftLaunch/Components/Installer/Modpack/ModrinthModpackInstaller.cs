@@ -12,6 +12,8 @@ namespace MinecraftLaunch.Components.Installer.Modpack;
 public sealed class ModrinthModpackInstaller : InstallerBase {
     public string ModpackPath { get; init; }
     public MinecraftEntry Minecraft { get; init; }
+    /// <summary>在游戏实例创建前预下载整合包文件时使用的目标目录。</summary>
+    public string WorkingPath { get; init; }
     public override string MinecraftFolder { get; init; }
     public ModrinthModpackInstallEntry Entry { get; init; }
 
@@ -51,6 +53,14 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
     }
 
     public override async Task<MinecraftEntry> InstallAsync(CancellationToken cancellationToken = default) {
+        await InstallFilesAsync(cancellationToken);
+        return Minecraft;
+    }
+
+    /// <summary>
+    /// 下载模组并释放覆盖文件。这些文件不依赖版本 JSON，可与游戏和加载器安装并行执行。
+    /// </summary>
+    public async Task InstallFilesAsync(CancellationToken cancellationToken = default) {
         ReportProgress(InstallStep.Started, 0.0d, TaskStatus.WaitingToRun, 1, 1);
 
         try {
@@ -65,8 +75,6 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
 
         ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
         ReportCompleted(true);
-
-        return Minecraft;
     }
 
     #region Privates
@@ -84,8 +92,7 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
             totalCount: constTotalCount, 
             finshedCount: 0);
         double count = 0;
-        var versionPath = Minecraft.ToWorkingPath(true);
-        //不对Parallel进行Foreach,直接不Parallel
+        var versionPath = GetWorkingPath();
         return fileArray.Select(fileItem =>
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -124,23 +131,37 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
 
         const string decompressPrefix = "overrides";
 
-        var count = 0; 
+        var totalCount = CountExtractableEntries(decompressPrefix);
+        if (totalCount == 0)
+        {
+            ReportProgress(InstallStep.ExtractModpack, 1.0d, TaskStatus.RanToCompletion, 0, 0);
+            return;
+        }
+        var count = 0;
         await ModPackUtils.ExtractSingleThreadAsync(
             srcZipPath: ModpackPath,
             overridesPrefix: decompressPrefix,
-            independentAndFullWorkingPath: Minecraft.ToWorkingPath(true),
+            independentAndFullWorkingPath: GetWorkingPath(),
             whenEachEntryCompleted: ReportEntryExtractingProgress,
             cancellationToken: cancellationToken);
-       return;
-        
-
         void ReportEntryExtractingProgress(ZipArchive zipArchive) =>
             ReportProgress(
                 step: InstallStep.ExtractModpack, 
-                progress: (Interlocked.Increment(ref count) / (double)zipArchive.Entries.Count).ToPercentage(0.85d, 1.0d),
+                progress: (Interlocked.Increment(ref count) / (double)totalCount).ToPercentage(0.85d, 1.0d),
                 status:  TaskStatus.Running,
-                totalCount: zipArchive.Entries.Count,
+                totalCount: totalCount,
                 finshedCount: count);
+
+        ReportProgress(InstallStep.ExtractModpack, 1.0d, TaskStatus.RanToCompletion, totalCount, totalCount);
+    }
+
+    private string GetWorkingPath() => WorkingPath ?? Minecraft.ToWorkingPath(true);
+
+    private int CountExtractableEntries(string prefix)
+    {
+        using var archive = ZipFile.OpenRead(ModpackPath);
+        return archive.Entries.Count(entry => !entry.FullName.EndsWith('/') &&
+            entry.FullName.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase));
     }
 
     #endregion

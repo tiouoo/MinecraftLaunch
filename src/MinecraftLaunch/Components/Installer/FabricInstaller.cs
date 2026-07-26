@@ -57,6 +57,10 @@ public sealed class FabricInstaller : InstallerBase {
         return entry;
     }
 
+    /// <summary>提前下载加载器版本配置，使其可与原版资源下载并行。</summary>
+    public Task PreloadAsync(CancellationToken cancellationToken = default) =>
+        DownloadProfileAsync(CustomId ?? $"fabric-loader-{Entry.Loader.Version}_{Entry.McVersion}", cancellationToken);
+
     #region Privates
 
     private MinecraftEntry ParseMinecraft(CancellationToken cancellationToken) {
@@ -78,6 +82,16 @@ public sealed class FabricInstaller : InstallerBase {
         cancellationToken.ThrowIfCancellationRequested();
         ReportProgress(InstallStep.DownloadVersionJson, 0.20d, TaskStatus.Running, 1, 0);
 
+        if (CustomId is { } customId)
+        {
+            var cachedProfile = new FileInfo(Path.Combine(MinecraftFolder, "versions", customId, $"{customId}.json"));
+            if (cachedProfile.Exists)
+            {
+                ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
+                return cachedProfile;
+            }
+        }
+
         string requestUrl = $"https://meta.fabricmc.net/v2/versions/loader/{Entry.McVersion}/{Entry.BuildVersion}/profile/json";
         requestUrl = DownloadManager.BmclApi.TryFindUrl(requestUrl);
 
@@ -85,12 +99,17 @@ public sealed class FabricInstaller : InstallerBase {
             .GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
         using var doc = await JsonDocument.ParseAsync(jsonStream,cancellationToken:cancellationToken).ConfigureAwait(false);
         
-        string instanceId = CustomId ?? 
+        string instanceId = CustomId ??
                             doc.RootElement.GetPropertyNullable("id"u8)?.GetString() ??
                             $"fabric-loader-{Entry.Loader.Version}_{entry.Id}";
 
         var jsonFile = new FileInfo(Path
             .Combine(MinecraftFolder, "versions", instanceId, $"{instanceId}.json"));
+
+        if (jsonFile.Exists) {
+            ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
+            return jsonFile;
+        }
 
         if (!jsonFile.Directory!.Exists)
             jsonFile.Directory.Create();
@@ -99,6 +118,27 @@ public sealed class FabricInstaller : InstallerBase {
         await JsonSerializer.SerializeAsync(output, doc, JsonDocumentSerializeContext.Default.JsonDocument,
             cancellationToken);
         
+        ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
+        return jsonFile;
+    }
+
+    private async Task<FileInfo> DownloadProfileAsync(string instanceId, CancellationToken cancellationToken) {
+        cancellationToken.ThrowIfCancellationRequested();
+        ReportProgress(InstallStep.DownloadVersionJson, 0.20d, TaskStatus.Running, 1, 0);
+
+        var jsonFile = new FileInfo(Path.Combine(MinecraftFolder, "versions", instanceId, $"{instanceId}.json"));
+        if (jsonFile.Exists) {
+            ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
+            return jsonFile;
+        }
+
+        var requestUrl = DownloadManager.BmclApi.TryFindUrl(
+            $"https://meta.fabricmc.net/v2/versions/loader/{Entry.McVersion}/{Entry.BuildVersion}/profile/json");
+        await using var jsonStream = await HttpUtil.FlurlClient.Request(requestUrl)
+            .GetStreamAsync(HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if (!jsonFile.Directory!.Exists) jsonFile.Directory.Create();
+        await using var output = File.OpenWrite(jsonFile.FullName);
+        await jsonStream.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
         ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
         return jsonFile;
     }

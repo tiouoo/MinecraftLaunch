@@ -13,17 +13,11 @@ using System.Net.Http.Headers;
 namespace MinecraftLaunch.Components.Downloader;
 
 public class DefaultDownloader : IDownloader {
-    private readonly SemaphoreSlim _globalSemaphore;
-
     private const int BufferSize = 4096;
     private const long SegmentThreshold = 1048576;
     private const double kilobyte = 1024.0;
     private const double megabyte = kilobyte * 1024.0;
     private const double gigabyte = megabyte * 1024.0;
-
-    public DefaultDownloader() {
-        _globalSemaphore = new SemaphoreSlim(DownloadManager.MaxThread, DownloadManager.MaxThread);
-    }
 
     public static string FormatSize(double bytes, bool includePerSecond = false) {
         string suffix;
@@ -46,25 +40,19 @@ public class DefaultDownloader : IDownloader {
     }
 
     public async Task<DownloadResult> DownloadAsync(DownloadRequest request, CancellationToken cancellationToken = default) {
-        await _globalSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        for (int attempt = 0; attempt < DownloadManager.MaxRetryCount; attempt++) {
+            try {
+                await DownloadFileDriverAsync(request, cancellationToken);
+                request.Completed?.Invoke(EventArgs.Empty);
+                return new DownloadResult(DownloadResultType.Successful);
+            } catch (OperationCanceledException) {
+                return new DownloadResult(DownloadResultType.Cancelled);
+            } catch (Exception ex) {
+                if (attempt == DownloadManager.MaxRetryCount - 1)
+                    return new DownloadResult(DownloadResultType.Failed) { Exception = ex };
 
-        try {
-            for (int attempt = 0; attempt < DownloadManager.MaxRetryCount; attempt++) {
-                try {
-                    await DownloadFileDriverAsync(request, cancellationToken);
-                    request.Completed?.Invoke(EventArgs.Empty);
-                    return new DownloadResult(DownloadResultType.Successful);
-                } catch (OperationCanceledException) {
-                    return new DownloadResult(DownloadResultType.Cancelled);
-                } catch (Exception ex) {
-                    if (attempt == DownloadManager.MaxRetryCount - 1)
-                        return new DownloadResult(DownloadResultType.Failed) { Exception = ex };
-
-                    await Task.Delay(1000 * (attempt + 1), cancellationToken).ConfigureAwait(false);
-                }
+                await Task.Delay(1000 * (attempt + 1), cancellationToken).ConfigureAwait(false);
             }
-        } finally {
-            _globalSemaphore.Release();
         }
 
         return new DownloadResult(DownloadResultType.Failed);
@@ -77,14 +65,14 @@ public class DefaultDownloader : IDownloader {
             TotalBytes = requests.Files.Sum(x => x.Size)
         };
 
-        List<(DownloadRequest, DownloadResult)> failed = [];
-        List<Task> downloadTasks = [];
-
         _ = ReportGroupProgressAsync(downloadStates, requests, cancellationToken);
-        foreach (var req in requests.Files)
-            downloadTasks.Add(DownloadInGroupAsync(downloadStates, req, cancellationToken));
-
-        await Task.WhenAll(downloadTasks);
+        // Do not create one task per file. Large installations can contain thousands of files;
+        // cancelling all of them at once starves rendering even when progress updates are throttled.
+        await Parallel.ForEachAsync(requests.Files, new ParallelOptions
+        {
+            MaxDegreeOfParallelism = Math.Max(1, DownloadManager.MaxThread),
+            CancellationToken = cancellationToken
+        }, async (request, token) => await DownloadInGroupAsync(downloadStates, request, token));
 
         var type = DownloadResultType.Successful;
 
@@ -104,52 +92,47 @@ public class DefaultDownloader : IDownloader {
     }
 
     private async Task DownloadInGroupAsync(GroupDownloadStates downloadStates, DownloadRequest request, CancellationToken cancellationToken = default) {
-        await _globalSemaphore.WaitAsync(cancellationToken);
+        if (!request.FileInfo.Directory.Exists)
+            request.FileInfo.Directory.Create();
 
-        try {
-            if (!request.FileInfo.Directory.Exists)
-                request.FileInfo.Directory.Create();
+        for (int attempt = 0; attempt < DownloadManager.MaxRetryCount; attempt++) {
+            try {
+                string url = request.Url;
+                var (response, finalUrl) = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
 
-            for (int attempt = 0; attempt < DownloadManager.MaxRetryCount; attempt++) {
-                try {
-                    string url = request.Url;
-                    var (response, finalUrl) = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
+                var states = new DownloadStates {
+                    Url = finalUrl,
+                    FragmentSize = SegmentThreshold,
+                    Stopwatch = Stopwatch.StartNew(),
+                    LocalPath = request.FileInfo.FullName,
+                };
 
-                    var states = new DownloadStates {
-                        Url = finalUrl,
-                        FragmentSize = SegmentThreshold,
-                        Stopwatch = Stopwatch.StartNew(),
-                        LocalPath = request.FileInfo.FullName,
-                    };
+                downloadStates.States.Add(states);
+                if (response.Content.Headers.ContentLength is long contentLength)
+                    states.TotalBytes = contentLength;
+                else
+                    states.TotalBytes = request.Size;
 
-                    downloadStates.States.Add(states);
-                    if (response.Content.Headers.ContentLength is long contentLength)
-                        states.TotalBytes = contentLength;
-                    else
-                        states.TotalBytes = request.Size;
-
-                    if (DownloadManager.IsEnableFragment) {
-                        bool supportsRange = await ValidateRangeSupport(finalUrl, cancellationToken).ConfigureAwait(false);
-                        if (supportsRange) {
-                            await DownloadMultiPartAsync(states, request, cancellationToken).ConfigureAwait(false);
-                            Interlocked.Increment(ref downloadStates.DownloadedCount);
-                            return;
-                        }
+                if (DownloadManager.IsEnableFragment) {
+                    bool supportsRange = await ValidateRangeSupport(finalUrl, cancellationToken).ConfigureAwait(false);
+                    if (supportsRange) {
+                        await DownloadMultiPartAsync(states, request, cancellationToken).ConfigureAwait(false);
+                        Interlocked.Increment(ref downloadStates.DownloadedCount);
+                        return;
                     }
-
-                    await DownloadSinglePartAsync(states, request, cancellationToken).ConfigureAwait(false);
-                    Interlocked.Increment(ref downloadStates.DownloadedCount);
-                    request.Completed?.Invoke(EventArgs.Empty);
-                    break;
-                } catch (OperationCanceledException) {
-                } catch (Exception) {
-                    await Task.Delay(1000 * (attempt + 1), cancellationToken).ConfigureAwait(false);
                 }
-            }
-        } finally {
-            _globalSemaphore.Release();
-        }
 
+                await DownloadSinglePartAsync(states, request, cancellationToken).ConfigureAwait(false);
+                Interlocked.Increment(ref downloadStates.DownloadedCount);
+                request.Completed?.Invoke(EventArgs.Empty);
+                break;
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                throw;
+            } catch (OperationCanceledException) {
+            } catch (Exception) {
+                await Task.Delay(1000 * (attempt + 1), cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 
     private static async Task<bool> ValidateRangeSupport(string url, CancellationToken cancellationToken) {
@@ -238,7 +221,7 @@ public class DefaultDownloader : IDownloader {
         fileStream.SetLength(fileSize);
 
         var tasks = new List<Task>();
-        int workers = Math.Min(DownloadManager.MaxThread, (int)totalSegments);
+        int workers = Math.Min(Math.Max(1, DownloadManager.MaxFragment), (int)totalSegments);
         for (int i = 0; i < workers; i++)
             tasks.Add(MultipartDownloadWorker(states, request, cancellationToken));
 

@@ -72,6 +72,9 @@ public sealed class ForgeInstaller : InstallerBase {
         return entry;
     }
 
+    /// <summary>提前下载加载器安装包，使其可与原版资源下载并行。</summary>
+    public Task PreloadAsync(CancellationToken cancellationToken = default) => DownloadForgePackageAsync(cancellationToken);
+
     public static async Task<IEnumerable<ForgeInstallEntry>> EnumerableForgeAsync(string mcVersion, bool isNeoforge = false, CancellationToken cancellationToken = default) {
         var packagesUrl = isNeoforge
             ? $"https://bmclapi2.bangbang93.com/neoforge/list/{mcVersion}"
@@ -129,10 +132,16 @@ public sealed class ForgeInstaller : InstallerBase {
                 $"-installer.jar";
 
         var packageFile = new FileInfo(Path.Combine(MinecraftFolder, fileName));
+        if (packageFile.Exists) {
+            ReportProgress(InstallStep.DownloadPackage, 0.45d, TaskStatus.Running, 1, 1);
+            return packageFile;
+        }
         var downloadRequest = new DownloadRequest(packageUrl, packageFile.FullName);
 
         var downloadResult = await new DefaultDownloader()
             .DownloadAsync(downloadRequest, cancellationToken);
+        if (downloadResult.Type == DownloadResultType.Cancelled)
+            throw new OperationCanceledException(cancellationToken);
         if (downloadResult.Type is DownloadResultType.Failed) throw downloadResult.Exception;
         ReportProgress(InstallStep.DownloadPackage, 0.45d, TaskStatus.Running, 1, 1);
 

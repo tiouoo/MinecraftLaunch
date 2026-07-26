@@ -15,6 +15,8 @@ namespace MinecraftLaunch.Components.Installer.Modpack;
 public sealed class CurseforgeModpackInstaller : InstallerBase {
     public string ModpackPath { get; init; }
     public MinecraftEntry Minecraft { get; init; }
+    /// <summary>在游戏实例创建前预下载整合包文件时使用的目标目录。</summary>
+    public string WorkingPath { get; init; }
     public override string MinecraftFolder { get; init; }
     public CurseforgeModpackInstallEntry Entry { get; init; }
 
@@ -75,6 +77,14 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
     }
 
     public override async Task<MinecraftEntry> InstallAsync(CancellationToken cancellationToken = default) {
+        await InstallFilesAsync(cancellationToken);
+        return Minecraft;
+    }
+
+    /// <summary>
+    /// 下载模组并释放覆盖文件。这些文件不依赖版本 JSON，可与游戏和加载器安装并行执行。
+    /// </summary>
+    public async Task InstallFilesAsync(CancellationToken cancellationToken = default) {
         ReportProgress(InstallStep.Started, 0.0d, TaskStatus.WaitingToRun, 1, 1);
 
         try {
@@ -98,8 +108,6 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
 
         ReportProgress(InstallStep.RanToCompletion, 1.0d, TaskStatus.RanToCompletion, 1, 1);
         ReportCompleted(true);
-
-        return Minecraft;
     }
 
     #region Privates
@@ -122,7 +130,7 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
         int totalCount = Entry.ModFiles.Count();
         List<Task> requestTasks = [];
         List<(string, CurseforgeModpackFileEntry)> downloadInfoGroup = [];
-        SemaphoreSlim semaphoreSlim = new(256, 256);
+        using SemaphoreSlim semaphoreSlim = new(256, 256);
         ReportProgress(InstallStep.ParseDownloadUrls, 0.1d, TaskStatus.Running, totalCount, count);
 
         foreach (var modpackFile in Entry.ModFiles) {
@@ -130,19 +138,21 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
 
             requestTasks.Add(Task.Run(async () => {
                 await semaphoreSlim.WaitAsync(cancellationToken);
-                if (modpackFile.IsRequired)
+                try {
+                    if (!modpackFile.IsRequired) return;
                     downloadUrl = await CurseforgeProvider.GetModDownloadUrlAsync(modpackFile.ProjectId, modpackFile.FileId, cancellationToken);
-                else return;
 
-                lock (requestTasks) {
-                    var progress = (double)Interlocked.Increment(ref count) / (double)totalCount;
-                    ReportProgress(InstallStep.ParseDownloadUrls, progress.ToPercentage(0.1d, 0.5d),
-                        TaskStatus.Running, totalCount, count);
+                    lock (downloadInfoGroup) {
+                        var progress = (double)Interlocked.Increment(ref count) / (double)totalCount;
+                        ReportProgress(InstallStep.ParseDownloadUrls, progress.ToPercentage(0.1d, 0.5d),
+                            TaskStatus.Running, totalCount, count);
 
-                    downloadInfoGroup.Add(new(downloadUrl, modpackFile));
+                        downloadInfoGroup.Add(new(downloadUrl, modpackFile));
+                    }
                 }
-
-                semaphoreSlim.Release();
+                finally {
+                    semaphoreSlim.Release();
+                }
             }, cancellationToken));
         }
 
@@ -153,29 +163,28 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
     private async IAsyncEnumerable<string> RedirectInvalidModsAsync(List<CurseforgeModpackFileEntry> modpacks, [EnumeratorCancellation] CancellationToken cancellationToken) {
         ReportProgress(InstallStep.RedirectInvalidMod, 0.5d, TaskStatus.Running, modpacks.Count, 0);
 
-        int count = 0;
-        int totalCount = modpacks.Count;
-        foreach (var modpackFile in modpacks) {
+        var totalCount = modpacks.Count;
+        var count = 0;
+        var resolvedUrls = await Task.WhenAll(modpacks.Select(async modpackFile =>
+        {
             var modFileName = (await CurseforgeProvider
                 .GetModFileEntryAsync(modpackFile.ProjectId, modpackFile.FileId, cancellationToken))
                 .GetProperty("fileName"u8).GetString();
-            
-            lock (modpacks) {
-                var progress = (double)count / (double)totalCount;
+            var url = await CurseforgeProvider.TestDownloadUrlAsync(modpackFile.FileId, modFileName, cancellationToken);
+            var completed = Interlocked.Increment(ref count);
+            ReportProgress(InstallStep.RedirectInvalidMod,
+                ((double)completed / totalCount).ToPercentage(0.5d, 0.6d), TaskStatus.Running, totalCount, completed);
+            return url;
+        }));
 
-                ReportProgress(InstallStep.RedirectInvalidMod, progress.ToPercentage(0.5d, 0.6d), TaskStatus.Running, totalCount,
-                    Interlocked.Increment(ref count));
-            }
-
-            yield return await CurseforgeProvider.TestDownloadUrlAsync(modpackFile.FileId, modFileName, cancellationToken);
-        }
+        foreach (var url in resolvedUrls) yield return url;
     }
 
     private async Task DownloadModsAsync(IEnumerable<string> asyncUrls, CancellationToken cancellationToken) {
         List<Task> downloadTasks = [];
         var urls = asyncUrls.ToList();
 
-        var modsPath = new DirectoryInfo(Path.Combine(Minecraft.ToWorkingPath(true), "mods"));
+        var modsPath = new DirectoryInfo(Path.Combine(GetWorkingPath(), "mods"));
         if (!modsPath.Exists)
             modsPath.Create();
 
@@ -197,22 +206,37 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
       
         ReportProgress(InstallStep.ExtractModpack, 0.85d, TaskStatus.Running, 0, 0); // 此处未开始解析,返回0
 
-        var count = 0; 
+        var totalCount = CountExtractableEntries(Entry.Overrides);
+        if (totalCount == 0)
+        {
+            ReportProgress(InstallStep.ExtractModpack, 1.0d, TaskStatus.RanToCompletion, 0, 0);
+            return;
+        }
+        var count = 0;
         await ModPackUtils.ExtractSingleThreadAsync(
             srcZipPath: ModpackPath,
             overridesPrefix: Entry.Overrides,
-            independentAndFullWorkingPath: Minecraft.ToWorkingPath(true),
+            independentAndFullWorkingPath: GetWorkingPath(),
             whenEachEntryCompleted: ReportEntryExtractingProgress,
             cancellationToken: cancellationToken);
-        return;
-        
         void ReportEntryExtractingProgress(ZipArchive zipArchive) =>
             ReportProgress(
                 step: InstallStep.ExtractModpack, 
-                progress: (Interlocked.Increment(ref count) / (double)zipArchive.Entries.Count).ToPercentage(0.85d, 1.0d),
+                progress: (Interlocked.Increment(ref count) / (double)totalCount).ToPercentage(0.85d, 1.0d),
                 status:  TaskStatus.Running,
-                totalCount: zipArchive.Entries.Count,
+                totalCount: totalCount,
                 finshedCount: count);
+
+        ReportProgress(InstallStep.ExtractModpack, 1.0d, TaskStatus.RanToCompletion, totalCount, totalCount);
+    }
+
+    private string GetWorkingPath() => WorkingPath ?? Minecraft.ToWorkingPath(true);
+
+    private int CountExtractableEntries(string prefix)
+    {
+        using var archive = ZipFile.OpenRead(ModpackPath);
+        return archive.Entries.Count(entry => !entry.FullName.EndsWith('/') &&
+            entry.FullName.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase));
     }
 
     #endregion

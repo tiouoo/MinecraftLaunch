@@ -55,6 +55,10 @@ public sealed class QuiltInstaller : InstallerBase {
         return entry;
     }
 
+    /// <summary>提前下载加载器版本配置，使其可与原版资源下载并行。</summary>
+    public Task PreloadAsync(CancellationToken cancellationToken = default) =>
+        DownloadProfileAsync(CustomId ?? $"quilt-loader-{Entry.Loader.Version}_{Entry.McVersion}", cancellationToken);
+
     #region Privates
 
     private MinecraftEntry ParseMinecraft(CancellationToken cancellationToken) {
@@ -76,6 +80,16 @@ public sealed class QuiltInstaller : InstallerBase {
         cancellationToken.ThrowIfCancellationRequested();
         ReportProgress(InstallStep.DownloadVersionJson, 0.20d, TaskStatus.Running, 1, 0);
 
+        if (CustomId is { } customId)
+        {
+            var cachedProfile = new FileInfo(Path.Combine(MinecraftFolder, "versions", customId, $"{customId}.json"));
+            if (cachedProfile.Exists)
+            {
+                ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
+                return cachedProfile;
+            }
+        }
+
         string requestUrl = $"https://meta.quiltmc.org/v3/versions/loader/{Entry.McVersion}/{Entry.BuildVersion}/profile/json";
         requestUrl = DownloadManager.BmclApi.TryFindUrl(requestUrl);
 
@@ -88,6 +102,11 @@ public sealed class QuiltInstaller : InstallerBase {
         var jsonFile = new FileInfo(Path
             .Combine(MinecraftFolder, "versions", entryId, $"{entryId}.json"));
 
+        if (jsonFile.Exists) {
+            ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
+            return jsonFile;
+        }
+
         if (!jsonFile.Directory!.Exists)
             jsonFile.Directory.Create();
 
@@ -95,6 +114,26 @@ public sealed class QuiltInstaller : InstallerBase {
         await JsonSerializer.SerializeAsync(output, doc, JsonDocumentSerializeContext.Default.JsonDocument,
             cancellationToken);
 
+        ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
+        return jsonFile;
+    }
+
+    private async Task<FileInfo> DownloadProfileAsync(string instanceId, CancellationToken cancellationToken) {
+        cancellationToken.ThrowIfCancellationRequested();
+        ReportProgress(InstallStep.DownloadVersionJson, 0.20d, TaskStatus.Running, 1, 0);
+
+        var jsonFile = new FileInfo(Path.Combine(MinecraftFolder, "versions", instanceId, $"{instanceId}.json"));
+        if (jsonFile.Exists) {
+            ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
+            return jsonFile;
+        }
+
+        var requestUrl = DownloadManager.BmclApi.TryFindUrl(
+            $"https://meta.quiltmc.org/v3/versions/loader/{Entry.McVersion}/{Entry.BuildVersion}/profile/json");
+        await using var jsonStream = await requestUrl.GetStreamAsync(HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!jsonFile.Directory!.Exists) jsonFile.Directory.Create();
+        await using var output = File.OpenWrite(jsonFile.FullName);
+        await jsonStream.CopyToAsync(output, cancellationToken);
         ReportProgress(InstallStep.DownloadVersionJson, 0.45d, TaskStatus.Running, 1, 1);
         return jsonFile;
     }
