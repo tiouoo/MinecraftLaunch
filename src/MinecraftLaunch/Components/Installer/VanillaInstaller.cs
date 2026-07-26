@@ -10,11 +10,13 @@ using System.Text.Json;
 namespace MinecraftLaunch.Components.Installer;
 
 public sealed class VanillaInstaller : InstallerBase {
+    public string CustomId { get; init; }
     public VersionManifestEntry Entry { get; init; }
     public override string MinecraftFolder { get; init; }
 
-    public static VanillaInstaller Create(string minecraftFolder, VersionManifestEntry entry) {
+    public static VanillaInstaller Create(string minecraftFolder, VersionManifestEntry entry, string customId = default) {
         return new VanillaInstaller {
+            CustomId = customId,
             Entry = entry,
             MinecraftFolder = minecraftFolder
         };
@@ -67,7 +69,8 @@ public sealed class VanillaInstaller : InstallerBase {
         string requestUrl = DownloadManager.BmclApi.TryFindUrl(Entry.Url);
         await using var jsonStream = await requestUrl.GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
 
-        var jsonPath = new FileInfo(Path.Combine(MinecraftFolder, "versions", Entry.Id, $"{Entry.Id}.json"));
+        var instanceId = CustomId ?? Entry.Id;
+        var jsonPath = new FileInfo(Path.Combine(MinecraftFolder, "versions", instanceId, $"{instanceId}.json"));
         if (!jsonPath.Directory.Exists) {
             jsonPath.Directory.Create();
         }
