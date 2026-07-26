@@ -20,10 +20,22 @@ public sealed class MinecraftProcess : IDisposable {
         if (!ArgumentList.Any())
             return;
 
+        var fileName = launchConfig.JavaPath.JavaPath;
+        var arguments = string.Join(' ', launchArgs);
+
+        if (!string.IsNullOrWhiteSpace(launchConfig.WrapperCommand)) {
+            var javaCommand = $"\"{fileName}\" {arguments}";
+            var wrapped = launchConfig.WrapperCommand.Contains("{command}")
+                ? launchConfig.WrapperCommand.Replace("{command}", javaCommand)
+                : $"{launchConfig.WrapperCommand} {javaCommand}";
+
+            (fileName, arguments) = SplitCommandLine(wrapped);
+        }
+
         Process = new Process {
-            StartInfo = new ProcessStartInfo(launchConfig.JavaPath.JavaPath) {
+            StartInfo = new ProcessStartInfo(fileName) {
                 WorkingDirectory = minecraft.ToWorkingPath(launchConfig.IsEnableIndependency),
-                Arguments = string.Join(' ', launchArgs),
+                Arguments = arguments,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -51,6 +63,20 @@ public sealed class MinecraftProcess : IDisposable {
     }
 
     public void Dispose() => Process?.Dispose();
+
+    private static (string fileName, string arguments) SplitCommandLine(string command) {
+        command = command.Trim();
+        if (command.StartsWith('"')) {
+            var end = command.IndexOf('"', 1);
+            if (end > 0)
+                return (command[1..end], command[(end + 1)..].TrimStart());
+        }
+
+        var space = command.IndexOf(' ');
+        return space < 0
+            ? (command, string.Empty)
+            : (command[..space], command[(space + 1)..].TrimStart());
+    }
 
     private void OnMinecraftProcessExited(object sender, EventArgs e) {
         Exited?.Invoke(this, new());

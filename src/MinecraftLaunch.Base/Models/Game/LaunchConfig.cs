@@ -21,6 +21,8 @@ public record LaunchConfig {
     public string SaveName { get; set; }
 
     public IEnumerable<string> JvmArguments { get; set; } = [];
+    
+    public string WrapperCommand { get; set; }
 }
 
 public record ServerInfo {

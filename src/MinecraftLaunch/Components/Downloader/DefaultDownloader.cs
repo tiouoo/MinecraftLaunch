@@ -19,6 +19,13 @@ public class DefaultDownloader : IDownloader {
     private const double megabyte = kilobyte * 1024.0;
     private const double gigabyte = megabyte * 1024.0;
 
+    // Per-instance settings so callers can run isolated downloads without
+    // touching the process-wide DownloadManager configuration.
+    public int MaxThread { get; init; } = DownloadManager.MaxThread;
+    public int MaxFragment { get; init; } = DownloadManager.MaxFragment;
+    public int MaxRetryCount { get; init; } = DownloadManager.MaxRetryCount;
+    public bool IsEnableFragment { get; init; } = DownloadManager.IsEnableFragment;
+
     public static string FormatSize(double bytes, bool includePerSecond = false) {
         string suffix;
         if (bytes < kilobyte)
@@ -40,7 +47,7 @@ public class DefaultDownloader : IDownloader {
     }
 
     public async Task<DownloadResult> DownloadAsync(DownloadRequest request, CancellationToken cancellationToken = default) {
-        for (int attempt = 0; attempt < DownloadManager.MaxRetryCount; attempt++) {
+        for (int attempt = 0; attempt < MaxRetryCount; attempt++) {
             try {
                 await DownloadFileDriverAsync(request, cancellationToken);
                 request.Completed?.Invoke(EventArgs.Empty);
@@ -48,7 +55,7 @@ public class DefaultDownloader : IDownloader {
             } catch (OperationCanceledException) {
                 return new DownloadResult(DownloadResultType.Cancelled);
             } catch (Exception ex) {
-                if (attempt == DownloadManager.MaxRetryCount - 1)
+                if (attempt == MaxRetryCount - 1)
                     return new DownloadResult(DownloadResultType.Failed) { Exception = ex };
 
                 await Task.Delay(1000 * (attempt + 1), cancellationToken).ConfigureAwait(false);
@@ -70,7 +77,7 @@ public class DefaultDownloader : IDownloader {
         // cancelling all of them at once starves rendering even when progress updates are throttled.
         await Parallel.ForEachAsync(requests.Files, new ParallelOptions
         {
-            MaxDegreeOfParallelism = Math.Max(1, DownloadManager.MaxThread),
+            MaxDegreeOfParallelism = Math.Max(1, MaxThread),
             CancellationToken = cancellationToken
         }, async (request, token) => await DownloadInGroupAsync(downloadStates, request, token));
 
@@ -95,7 +102,7 @@ public class DefaultDownloader : IDownloader {
         if (!request.FileInfo.Directory.Exists)
             request.FileInfo.Directory.Create();
 
-        for (int attempt = 0; attempt < DownloadManager.MaxRetryCount; attempt++) {
+        for (int attempt = 0; attempt < MaxRetryCount; attempt++) {
             try {
                 string url = request.Url;
                 var (response, finalUrl) = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
@@ -113,7 +120,7 @@ public class DefaultDownloader : IDownloader {
                 else
                     states.TotalBytes = request.Size;
 
-                if (DownloadManager.IsEnableFragment) {
+                if (IsEnableFragment && states.TotalBytes > 0) {
                     bool supportsRange = await ValidateRangeSupport(finalUrl, cancellationToken).ConfigureAwait(false);
                     if (supportsRange) {
                         await DownloadMultiPartAsync(states, request, cancellationToken).ConfigureAwait(false);
@@ -144,7 +151,7 @@ public class DefaultDownloader : IDownloader {
         return response.StatusCode == HttpStatusCode.PartialContent;
     }
 
-    private static async Task DownloadFileDriverAsync(DownloadRequest request, CancellationToken cancellationToken) {
+    private async Task DownloadFileDriverAsync(DownloadRequest request, CancellationToken cancellationToken) {
         string url = request.Url;
         var (response, finalUrl) = await PrepareForDownloadAsync(url, cancellationToken).ConfigureAwait(false);
 
@@ -165,7 +172,7 @@ public class DefaultDownloader : IDownloader {
 
         var progressTask = ReportProgressAsync(states, request, cancellationToken);
         try {
-            if (DownloadManager.IsEnableFragment) {
+            if (IsEnableFragment && states.TotalBytes > 0) {
                 bool supportsRange = await ValidateRangeSupport(finalUrl, cancellationToken);
                 if (supportsRange) {
                     await DownloadMultiPartAsync(states, request, cancellationToken).ConfigureAwait(false);
@@ -212,7 +219,7 @@ public class DefaultDownloader : IDownloader {
         throw new HttpRequestException($"Too many redirects while downloading {url}");
     }
 
-    private static async Task DownloadMultiPartAsync(DownloadStates states, DownloadRequest request, CancellationToken cancellationToken) {
+    private async Task DownloadMultiPartAsync(DownloadStates states, DownloadRequest request, CancellationToken cancellationToken) {
         long fileSize = states.TotalBytes;
         long totalSegments = (fileSize + SegmentThreshold - 1) / SegmentThreshold;
         states.TotalFragments = totalSegments;
@@ -221,7 +228,7 @@ public class DefaultDownloader : IDownloader {
         fileStream.SetLength(fileSize);
 
         var tasks = new List<Task>();
-        int workers = Math.Min(Math.Max(1, DownloadManager.MaxFragment), (int)totalSegments);
+        int workers = Math.Min(Math.Max(1, MaxFragment), (int)totalSegments);
         for (int i = 0; i < workers; i++)
             tasks.Add(MultipartDownloadWorker(states, request, cancellationToken));
 
@@ -235,7 +242,7 @@ public class DefaultDownloader : IDownloader {
         await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using var fileStream = new FileStream(states.LocalPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, BufferSize, true);
 
-        if (states.TotalBytes is long size)
+        if (states.TotalBytes is long size and > 0)
             fileStream.SetLength(size);
 
         byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
