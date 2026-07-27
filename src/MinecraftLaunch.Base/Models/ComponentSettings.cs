@@ -10,4 +10,6 @@ public record ComponentSettings {
 
     public string CurseForgeApiKey { get; set; } = null;
     public string UserAgent { get; set; } = "MinecraftLaunch/4.0";
+    public bool DisableSystemProxy { get; set; }
+    public string? ProxyServer { get; set; }
 }

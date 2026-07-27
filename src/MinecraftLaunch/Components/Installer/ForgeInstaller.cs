@@ -6,6 +6,7 @@ using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Components.Downloader;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
+using MinecraftLaunch.Utilities;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
@@ -80,7 +81,7 @@ public sealed class ForgeInstaller : InstallerBase {
             ? $"https://bmclapi2.bangbang93.com/neoforge/list/{mcVersion}"
             : $"https://bmclapi2.bangbang93.com/forge/minecraft/{mcVersion}";
 
-        await using var json = await packagesUrl.GetStreamAsync(cancellationToken: cancellationToken);
+        await using var json = await HttpUtil.Request(packagesUrl).GetStreamAsync(cancellationToken: cancellationToken);
         var entries = (await JsonSerializer.DeserializeAsync(json,
                 ForgeInstallEntryContext.Default.IEnumerableForgeInstallEntry, cancellationToken))
             .OrderByDescending(entry => entry.Build);

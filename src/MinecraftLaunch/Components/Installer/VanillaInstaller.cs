@@ -5,6 +5,7 @@ using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Components.Downloader;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
+using MinecraftLaunch.Utilities;
 using System.Text.Json;
 
 namespace MinecraftLaunch.Components.Installer;
@@ -25,7 +26,7 @@ public sealed class VanillaInstaller : InstallerBase {
     public static async Task<IEnumerable<VersionManifestEntry>> EnumerableMinecraftAsync(CancellationToken cancellationToken = default) {
         var url = DownloadManager.BmclApi
             .TryFindUrl("https://launchermeta.mojang.com/mc/game/version_manifest.json");
-        await using var stream = await url.GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
+        await using var stream = await HttpUtil.Request(url).GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
         using var node = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
         var entries = node.RootElement.GetProperty("versions").Deserialize(VersionManifestEntryContext.Default.IEnumerableVersionManifestEntry);
@@ -67,7 +68,7 @@ public sealed class VanillaInstaller : InstallerBase {
         ReportProgress(InstallStep.DownloadVersionJson, 0.15d, TaskStatus.Running, 1, 0);
 
         string requestUrl = DownloadManager.BmclApi.TryFindUrl(Entry.Url);
-        await using var jsonStream = await requestUrl.GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
+        await using var jsonStream = await HttpUtil.Request(requestUrl).GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
 
         var instanceId = CustomId ?? Entry.Id;
         var jsonPath = new FileInfo(Path.Combine(MinecraftFolder, "versions", instanceId, $"{instanceId}.json"));
@@ -90,7 +91,7 @@ public sealed class VanillaInstaller : InstallerBase {
         var jsonFile = new FileInfo(entry.AssetIndexJsonPath);
 
         string requestUrl = DownloadManager.BmclApi.TryFindUrl(assetIndex.Url);
-        var json = await requestUrl.GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
+        var json = await HttpUtil.Request(requestUrl).GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
 
         if (!jsonFile.Directory.Exists) {
             jsonFile.Directory.Create();

@@ -3,6 +3,7 @@ using Flurl.Http;
 using MinecraftLaunch.Base.Enums;
 using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Components.Downloader;
+using MinecraftLaunch.Utilities;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -74,7 +75,7 @@ public sealed class JavaInstaller {
         ReportProgress(InstallStep.FetchingMetadata, 0.1d, TaskStatus.Running, 1, 0);
 
         string url = "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
-        await using var stream = await url.GetStreamAsync(cancellationToken:cancellationToken); // 获取 Java 元数据
+        await using var stream = await HttpUtil.Request(url).GetStreamAsync(cancellationToken:cancellationToken); // 获取 Java 元数据
         using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
         var root = doc.RootElement;
         

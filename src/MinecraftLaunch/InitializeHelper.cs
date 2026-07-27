@@ -1,6 +1,4 @@
-﻿using Flurl.Http;
-using Flurl.Http.Configuration;
-using MinecraftLaunch.Base.Models;
+﻿using MinecraftLaunch.Base.Models;
 using MinecraftLaunch.Utilities;
 
 namespace MinecraftLaunch;
@@ -16,17 +14,6 @@ public static class InitializeHelper {
         DownloadManager.IsEnableFragment = componentSettings.IsEnableFragment;
         DownloadManager.CurseforgeApiKey = componentSettings.CurseForgeApiKey;
 
-        HttpUtil.FlurlClient = new FlurlClient {
-            Settings = {
-                Timeout = TimeSpan.FromSeconds(15),
-                JsonSerializer = new DefaultJsonSerializer(JsonSerializerUtil.GetDefaultOptions()),
-                Redirects = {
-                    Enabled = true,
-                }
-            },
-            Headers = {
-                { "User-Agent", componentSettings.UserAgent },
-            },
-        };
+        HttpUtil.Configure(componentSettings.DisableSystemProxy, componentSettings.ProxyServer, componentSettings.UserAgent);
     }
 }

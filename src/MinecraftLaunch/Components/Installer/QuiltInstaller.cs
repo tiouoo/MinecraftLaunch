@@ -5,6 +5,7 @@ using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Components.Downloader;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
+using MinecraftLaunch.Utilities;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
@@ -25,7 +26,7 @@ public sealed class QuiltInstaller : InstallerBase {
     }
 
     public static async Task<IEnumerable<QuiltInstallEntry>> EnumerableQuiltAsync(string mcVersion, CancellationToken cancellationToken = default) {
-        await using var json = await $"https://meta.quiltmc.org/v3/versions/loader/{mcVersion}"
+        await using var json = await HttpUtil.Request($"https://meta.quiltmc.org/v3/versions/loader/{mcVersion}")
             .GetStreamAsync(cancellationToken: cancellationToken);
 
         var entries = await JsonSerializer.DeserializeAsync(json,QuiltInstallEntryContext.Default.IEnumerableQuiltInstallEntry, cancellationToken);
@@ -93,7 +94,7 @@ public sealed class QuiltInstaller : InstallerBase {
         string requestUrl = $"https://meta.quiltmc.org/v3/versions/loader/{Entry.McVersion}/{Entry.BuildVersion}/profile/json";
         requestUrl = DownloadManager.BmclApi.TryFindUrl(requestUrl);
 
-        await using var jsonStream = await requestUrl.GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
+        await using var jsonStream = await HttpUtil.Request(requestUrl).GetStreamAsync(HttpCompletionOption.ResponseContentRead, cancellationToken);
         using var doc = await JsonDocument.ParseAsync(jsonStream, cancellationToken: cancellationToken);
         string entryId = CustomId ??
             doc.RootElement.GetPropertyNullable("id"u8)?.GetString() ??
@@ -130,7 +131,7 @@ public sealed class QuiltInstaller : InstallerBase {
 
         var requestUrl = DownloadManager.BmclApi.TryFindUrl(
             $"https://meta.quiltmc.org/v3/versions/loader/{Entry.McVersion}/{Entry.BuildVersion}/profile/json");
-        await using var jsonStream = await requestUrl.GetStreamAsync(HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        await using var jsonStream = await HttpUtil.Request(requestUrl).GetStreamAsync(HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (!jsonFile.Directory!.Exists) jsonFile.Directory.Create();
         await using var output = File.OpenWrite(jsonFile.FullName);
         await jsonStream.CopyToAsync(output, cancellationToken);

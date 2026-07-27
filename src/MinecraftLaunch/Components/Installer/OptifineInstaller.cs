@@ -5,6 +5,7 @@ using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Components.Downloader;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
+using MinecraftLaunch.Utilities;
 using System.Diagnostics;
 using System.IO.Compression;
 
@@ -40,7 +41,7 @@ public sealed class OptifineInstaller : InstallerBase {
     public static async Task<IEnumerable<OptifineInstallEntry>> EnumerableOptifineAsync(string mcVersion, CancellationToken cancellationToken = default) {
         string url = $"https://bmclapi2.bangbang93.com/optifine/{mcVersion}";
 
-        await using var json = await url.GetStreamAsync(cancellationToken: cancellationToken);
+        await using var json = await HttpUtil.Request(url).GetStreamAsync(cancellationToken: cancellationToken);
         var entries = (await JsonSerializer.DeserializeAsync(json,
                 OptifineInstallEntryContext.Default.IEnumerableOptifineInstallEntry, cancellationToken))
             .OrderByDescending(entry => GetPatchNumber(entry.Patch))

@@ -4,6 +4,7 @@ using MinecraftLaunch.Base.Interfaces;
 using MinecraftLaunch.Base.Models.Game;
 using MinecraftLaunch.Base.Models.Network;
 using MinecraftLaunch.Extensions;
+using MinecraftLaunch.Utilities;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
@@ -64,8 +65,12 @@ public sealed class MinecraftResourceDownloader {
 
             // 验证 AssetIndex 文件
             if (!VerifyDependency(assetIndex, cancellationToken)) {
-                await assetIndex.Url.DownloadFileAsync(Path.Combine(assetIndex.MinecraftFolderPath, "assets", "indexes"),
-                    $"{assetIndex.Id}.json", 65536, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                var assetIndexDirectory = Path.Combine(assetIndex.MinecraftFolderPath, "assets", "indexes");
+                Directory.CreateDirectory(assetIndexDirectory);
+                await using var assetIndexStream = await HttpUtil.Request(assetIndex.Url)
+                    .GetStreamAsync(HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                await using var assetIndexFile = File.Create(Path.Combine(assetIndexDirectory, $"{assetIndex.Id}.json"));
+                await assetIndexStream.CopyToAsync(assetIndexFile, cancellationToken);
             }
 
             // 添加资源文件到依赖列表
