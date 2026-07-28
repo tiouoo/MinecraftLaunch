@@ -44,7 +44,7 @@ public static class HttpUtil {
     }
 
     private static HttpClient CreateClient(bool disableSystemProxy, string proxyServer, string userAgent) {
-        var hasProxyServer = Uri.TryCreate(proxyServer, UriKind.Absolute, out var proxyUri);
+        var hasProxyServer = TryGetProxyUri(proxyServer, out var proxyUri);
         var handler = new SocketsHttpHandler {
             UseProxy = !disableSystemProxy || hasProxyServer
         };
@@ -52,5 +52,11 @@ public static class HttpUtil {
         var client = new HttpClient(handler);
         if (!string.IsNullOrWhiteSpace(userAgent)) client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
         return client;
+    }
+
+    private static bool TryGetProxyUri(string proxyServer, out Uri proxyUri) {
+        if (!string.IsNullOrWhiteSpace(proxyServer) && !proxyServer.Contains("://", StringComparison.Ordinal))
+            proxyServer = $"http://{proxyServer}";
+        return Uri.TryCreate(proxyServer, UriKind.Absolute, out proxyUri);
     }
 }
