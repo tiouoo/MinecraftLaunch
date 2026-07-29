@@ -67,7 +67,18 @@ public static partial class JavaUtil {
 
     public static async IAsyncEnumerable<JavaEntry> EnumerableJavaAsync([EnumeratorCancellation] CancellationToken cancellationToken = default) {
         if (EnvironmentUtil.IsWindow) {
-            foreach (var java in GetJavasForWindows()) {
+            static string GetJavaHomePath(string javaPath) {
+                var binPath = Path.GetDirectoryName(javaPath);
+                return binPath is null ? javaPath : Directory.GetParent(binPath)?.FullName ?? binPath;
+            }
+
+            var javaPaths = GetJavasForWindows()
+                .Where(File.Exists)
+                .GroupBy(GetJavaHomePath, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.OrderBy(path =>
+                    string.Equals(Path.GetFileName(path), "java.exe", StringComparison.OrdinalIgnoreCase) ? 0 : 1).First());
+
+            foreach (var java in javaPaths) {
                 if (File.Exists(java))
                     yield return await GetJavaInfoAsync(java, cancellationToken);
             }
@@ -217,10 +228,20 @@ public static partial class JavaUtil {
         folders.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Zulu"));
         folders.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Zulu"));
 
-        // Check Java for each folder
-        foreach (var folder in folders)
-            if (Directory.Exists(folder))
-                result.AddRange(new DirectoryInfo(folder).FindAll("javaw.exe").Select(x => x.FullName));
+        // Common Java and Minecraft locations on every ready fixed drive.
+        foreach (var drive in DriveInfo.GetDrives().Where(drive => drive.IsReady && drive.DriveType == DriveType.Fixed)) {
+            folders.Add(Path.Combine(drive.RootDirectory.FullName, "Java"));
+            folders.Add(Path.Combine(drive.RootDirectory.FullName, "jdk"));
+            folders.Add(Path.Combine(drive.RootDirectory.FullName, "Minecraft"));
+        }
+
+        // Check Java for each folder.
+        foreach (var folder in folders.Distinct(StringComparer.OrdinalIgnoreCase))
+            if (Directory.Exists(folder)) {
+                var directory = new DirectoryInfo(folder);
+                result.AddRange(directory.FindAll("java.exe").Select(x => x.FullName));
+                result.AddRange(directory.FindAll("javaw.exe").Select(x => x.FullName));
+            }
 
         #endregion
 
