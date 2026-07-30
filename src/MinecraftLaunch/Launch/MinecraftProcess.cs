@@ -2,6 +2,7 @@
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
 using System.Diagnostics;
+using System.Text;
 
 namespace MinecraftLaunch.Launch;
 
@@ -40,6 +41,8 @@ public sealed class MinecraftProcess : IDisposable {
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.Default,
+                StandardErrorEncoding = Encoding.Default,
             },
             EnableRaisingEvents = true,
         };
