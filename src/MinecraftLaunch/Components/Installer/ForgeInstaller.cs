@@ -82,9 +82,14 @@ public sealed class ForgeInstaller : InstallerBase {
             : $"https://bmclapi2.bangbang93.com/forge/minecraft/{mcVersion}";
 
         await using var json = await HttpUtil.Request(packagesUrl).GetStreamAsync(cancellationToken: cancellationToken);
-        var entries = (await JsonSerializer.DeserializeAsync(json,
-                ForgeInstallEntryContext.Default.IEnumerableForgeInstallEntry, cancellationToken))
-            .OrderByDescending(entry => entry.Build);
+        IEnumerable<ForgeInstallEntry> entries = await JsonSerializer.DeserializeAsync(json,
+                ForgeInstallEntryContext.Default.IEnumerableForgeInstallEntry, cancellationToken)
+            ?? [];
+
+        // NeoForge 列表接口不返回 build 字段（全部为 0），需按版本号语义排序才能让最新版排在最前。
+        entries = isNeoforge
+            ? entries.OrderByDescending(entry => entry, new NeoForgeVersionComparer(mcVersion))
+            : entries.OrderByDescending(entry => entry.Build);
 
         foreach (var entry in entries)
             entry.IsNeoforge = isNeoforge;
@@ -372,3 +377,51 @@ public record ForgeProcessorData {
 [JsonSerializable(typeof(IEnumerable<ForgeProcessorData>))]
 [JsonSerializable(typeof(Dictionary<string, Dictionary<string, string>>))]
 internal sealed partial class ForgeInstallerContext : JsonSerializerContext;
+
+/// <summary>
+/// 按 NeoForge 版本号语义比较（如 1.20.1-47.1.85 与 21.1.247），预发布版本排在正式版本之后。
+/// </summary>
+internal sealed class NeoForgeVersionComparer(string mcVersion) : IComparer<ForgeInstallEntry>
+{
+    public int Compare(ForgeInstallEntry left, ForgeInstallEntry right)
+    {
+        if (ReferenceEquals(left, right)) return 0;
+        if (left is null) return -1;
+        if (right is null) return 1;
+
+        var leftVersion = ParseVersion(left);
+        var rightVersion = ParseVersion(right);
+        int length = Math.Max(leftVersion.Components.Length, rightVersion.Components.Length);
+        for (int i = 0; i < length; i++)
+        {
+            int comparison = (i < leftVersion.Components.Length ? leftVersion.Components[i] : 0)
+                .CompareTo(i < rightVersion.Components.Length ? rightVersion.Components[i] : 0);
+            if (comparison != 0) return comparison;
+        }
+
+        if (leftVersion.IsPreRelease != rightVersion.IsPreRelease)
+            return leftVersion.IsPreRelease ? -1 : 1;
+
+        return string.CompareOrdinal(left.ForgeVersion, right.ForgeVersion);
+    }
+
+    private (int[] Components, bool IsPreRelease) ParseVersion(ForgeInstallEntry entry)
+    {
+        var version = entry.ForgeVersion;
+        if (string.IsNullOrWhiteSpace(version)) return ([], false);
+
+        var loaderVersion = version;
+        if (loaderVersion.StartsWith(mcVersion + "-", StringComparison.Ordinal))
+            loaderVersion = loaderVersion[(mcVersion.Length + 1)..];
+
+        int dashIndex = loaderVersion.IndexOf('-');
+        var numericPart = dashIndex >= 0 ? loaderVersion[..dashIndex] : loaderVersion;
+
+        var components = new List<int>();
+        foreach (var part in numericPart.Split('.'))
+            if (int.TryParse(part, out int number))
+                components.Add(number);
+
+        return (components.ToArray(), dashIndex >= 0);
+    }
+}
