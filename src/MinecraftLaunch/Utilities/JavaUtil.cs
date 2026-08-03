@@ -1,4 +1,4 @@
-﻿// 本段部分实现逻辑参考自 ProjBobcat 的 DeepJavaSearcher.cs
+// 本段部分实现逻辑参考自 ProjBobcat 的 DeepJavaSearcher.cs
 // 仓库地址：https://github.com/Corona-Studio/ProjBobcat
 
 using Microsoft.Win32;
@@ -65,14 +65,16 @@ public static partial class JavaUtil {
         };
     }
 
-    public static async IAsyncEnumerable<JavaEntry> EnumerableJavaAsync([EnumeratorCancellation] CancellationToken cancellationToken = default) {
+    public static async IAsyncEnumerable<JavaEntry> EnumerableJavaAsync(
+        bool fastMode = false,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default) {
         if (EnvironmentUtil.IsWindow) {
             static string GetJavaHomePath(string javaPath) {
                 var binPath = Path.GetDirectoryName(javaPath);
                 return binPath is null ? javaPath : Directory.GetParent(binPath)?.FullName ?? binPath;
             }
 
-            var javaPaths = GetJavasForWindows()
+            var javaPaths = GetJavasForWindows(fastMode)
                 .Where(File.Exists)
                 .GroupBy(GetJavaHomePath, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.OrderBy(path =>
@@ -117,7 +119,7 @@ public static partial class JavaUtil {
     private static partial Regex JavaVersionRegex();
 
     [SupportedOSPlatform("Windows")]
-    private static IEnumerable<string> GetJavasForWindows() {
+    private static IEnumerable<string> GetJavasForWindows(bool fastMode = false) {
         //Use by:https://github.com/Xcube-Studio/Natsurainko.FluentCore/blob/main/Natsurainko.FluentCore/Environment/JavaUtils.cs
         List<string> result = [];
 
@@ -236,11 +238,14 @@ public static partial class JavaUtil {
         }
 
         // Check Java for each folder.
+        // fastMode: 有限深度搜索（5层），跳过深层递归，大幅提速
+        // 非 fastMode: 无限深度搜索（FindAll），确保找到所有 Java
+        var searchDepth = fastMode ? 5 : int.MaxValue;
         foreach (var folder in folders.Distinct(StringComparer.OrdinalIgnoreCase))
             if (Directory.Exists(folder)) {
                 var directory = new DirectoryInfo(folder);
-                result.AddRange(directory.FindAll("java.exe").Select(x => x.FullName));
-                result.AddRange(directory.FindAll("javaw.exe").Select(x => x.FullName));
+                result.AddRange(directory.FindAllLimited("java.exe", searchDepth).Select(x => x.FullName));
+                result.AddRange(directory.FindAllLimited("javaw.exe", searchDepth).Select(x => x.FullName));
             }
 
         #endregion
