@@ -47,6 +47,7 @@ public sealed class ForgeInstaller : InstallerBase {
             forgePackageFile = await DownloadForgePackageAsync(cancellationToken);
 
             var (package, installProfile, isLegacy) = ParseForgePackage(forgePackageFile.FullName, cancellationToken);
+            using (package)
             using(var doc = installProfile){
                 var forgeClientFile =
                     await WriteVersionJsonAndSomeDependenciesAsync(isLegacy, doc.RootElement, package,
@@ -267,9 +268,9 @@ public sealed class ForgeInstaller : InstallerBase {
             { "{SIDE}", "client" },
             { "{MINECRAFT_JAR}", entry.ClientJarPath },
             { "{MINECRAFT_VERSION}", Entry.McVersion },
-            { "{ROOT}", MinecraftFolder.ToPath() },
-            { "{INSTALLER}", packageFilePath.ToPath() },
-            { "{LIBRARY_DIR}", Path.Combine(MinecraftFolder, "libraries").ToPath() }
+            { "{ROOT}", MinecraftFolder },
+            { "{INSTALLER}", packageFilePath },
+            { "{LIBRARY_DIR}", Path.Combine(MinecraftFolder, "libraries") }
         };
 
         var replaceProcessorArgs = forgeDataDictionary.ToDictionary(
@@ -278,8 +279,7 @@ public sealed class ForgeInstaller : InstallerBase {
                 if (!value.StartsWith('[')) return value;
 
                 return Path.Combine(MinecraftFolder, "libraries", value.TrimStart('[').TrimEnd(']')
-                    .FormatLibraryNameToRelativePath())
-                    .ToPath();
+                    .FormatLibraryNameToRelativePath());
             });
         if (!installProfile.TryGetProperty("processors"u8,out var processorsEntry)) throw new InvalidDataException("Unable to parse Forge Processors");
         var forgeProcessors = processorsEntry
@@ -297,8 +297,7 @@ public sealed class ForgeInstaller : InstallerBase {
 
             processor.Args = processor.Args.Select(x => {
                 if (x.StartsWith('['))
-                    return Path.Combine(MinecraftFolder, "libraries", x.TrimStart('[').TrimEnd(']').FormatLibraryNameToRelativePath())
-                        .ToPath();
+                    return Path.Combine(MinecraftFolder, "libraries", x.TrimStart('[').TrimEnd(']').FormatLibraryNameToRelativePath());
 
                 return x.ReplaceFromDictionary(replaceProcessorArgs)
                     .ReplaceFromDictionary(replaceValues);
@@ -323,20 +322,22 @@ public sealed class ForgeInstaller : InstallerBase {
 
             var args = new List<string> {
                 "-cp",
-                classPath.ToPath(),
+                classPath,
                 mainClass
             };
 
             args.AddRange(processor.Args);
 
-            using var process = Process.Start(new ProcessStartInfo(JavaPath) {
-                Arguments = string.Join(" ", args),
+            var startInfo = new ProcessStartInfo(JavaPath) {
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WorkingDirectory = MinecraftFolder,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true
-            }) ?? throw new Exception("Failed to start Java");
+            };
+            foreach (var argument in args)
+                startInfo.ArgumentList.Add(argument);
+            using var process = Process.Start(startInfo) ?? throw new Exception("Failed to start Java");
 //            TODO Maybe it is Xilu's Todo event 
 //            List<string> _errorOutputs = [];
 //
@@ -349,6 +350,13 @@ public sealed class ForgeInstaller : InstallerBase {
             process.BeginErrorReadLine();
 
             await process.WaitForExitAsync(cancellationToken);
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException($"Forge installation processor exited with code {process.ExitCode}.");
+
+            var missingOutput = processor.Outputs.Keys.FirstOrDefault(path => !File.Exists(path));
+            if (missingOutput is not null)
+                throw new FileNotFoundException("Forge installation processor did not produce an expected output.",
+                    missingOutput);
 
             ReportProgress(InstallStep.RunInstallProcessor, ((double)count / (double)totalCount).ToPercentage(0.75d, 0.95d),
                  TaskStatus.Running, totalCount, Interlocked.Increment(ref count));
