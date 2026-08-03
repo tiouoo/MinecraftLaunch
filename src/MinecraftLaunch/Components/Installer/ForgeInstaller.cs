@@ -188,7 +188,14 @@ public sealed class ForgeInstaller : InstallerBase {
             foreach (var entry in packageArchive.Entries.Where(x => !x.FullName.EndsWith('/') && x.FullName.StartsWith($"maven/net/minecraftforge/forge/{forgeVersion}", StringComparison.Ordinal)))
                 entry.ExtractTo(Path.Combine(forgeLibsFolder, entry.Name));
 
-        packageArchive.GetEntry("data/client.lzma")?.ExtractTo(Path.Combine(forgeLibsFolder, $"forge-{forgeVersion}-clientdata.lzma"));
+        if (packageArchive.GetEntry("data/client.lzma") is { } clientData)
+        {
+            var clientDataMavenName = TryGetClientDataMavenName(installProfile);
+            var clientDataPath = clientDataMavenName is null
+                ? Path.Combine(forgeLibsFolder, $"forge-{forgeVersion}-clientdata.lzma")
+                : Path.Combine(MinecraftFolder, "libraries", clientDataMavenName.FormatLibraryNameToRelativePath());
+            clientData.ExtractTo(clientDataPath);
+        }
         
         var jsonContent = (isLegacyForgeVersion
                               ? installProfile.GetProperty("versionInfo"u8).GetString()
@@ -260,7 +267,8 @@ public sealed class ForgeInstaller : InstallerBase {
         string forgeVersion = $"{Entry.McVersion}-{Entry.ForgeVersion}";
 
         if (forgeDataDictionary.TryGetValue("BINPATCH", out Dictionary<string, string> value)) {
-            value["client"] = $"[net.minecraftforge:forge:{forgeVersion}:clientdata@lzma]";
+            var clientDataMavenName = TryGetClientDataMavenName(installProfile);
+            value["client"] = $"[{clientDataMavenName ?? $"net.minecraftforge:forge:{forgeVersion}:clientdata@lzma"}]";
             value["server"] = $"[net.minecraftforge:forge:{forgeVersion}:serverdata@lzma]";
         }
 
@@ -361,6 +369,25 @@ public sealed class ForgeInstaller : InstallerBase {
             ReportProgress(InstallStep.RunInstallProcessor, ((double)count / (double)totalCount).ToPercentage(0.75d, 0.95d),
                  TaskStatus.Running, totalCount, Interlocked.Increment(ref count));
         }
+
+        if (replaceProcessorArgs.TryGetValue("{PATCHED}", out var patchedClientPath)
+            && !File.Exists(patchedClientPath))
+            throw new FileNotFoundException("Forge installation did not produce the patched client.", patchedClientPath);
+    }
+
+    private static string TryGetClientDataMavenName(JsonElement installProfile)
+    {
+        if (!installProfile.TryGetProperty("data"u8, out var data)
+            || !data.TryGetProperty("PATCHED"u8, out var patched)
+            || !patched.TryGetProperty("client"u8, out var client))
+            return null;
+
+        var patchedMavenName = client.GetString()?.Trim('[', ']');
+        if (string.IsNullOrWhiteSpace(patchedMavenName))
+            return null;
+
+        var parts = patchedMavenName.Split(':');
+        return parts.Length >= 3 ? $"{parts[0]}:{parts[1]}:{parts[2]}:clientdata@lzma" : null;
     }
 
     private static ModifiedMinecraftEntry ParseModifiedMinecraft(FileInfo file, MinecraftEntry inheritedEntry,
