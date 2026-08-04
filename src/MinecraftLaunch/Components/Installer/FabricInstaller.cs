@@ -153,10 +153,9 @@ public sealed class FabricInstaller : InstallerBase {
                 TaskStatus.Running, resourceDownloader.TotalCount,
                     x.CompletedCount, x.Speed, true);
 
-        await resourceDownloader.VerifyAndDownloadDependenciesAsync(cancellationToken: cancellationToken);
-
-        //if (groupDownloadResult.Failed.Count > 0)
-        //    throw new InvalidOperationException("Some dependent files encountered errors during download");
+        var result = await resourceDownloader.VerifyAndDownloadDependenciesAsync(cancellationToken: cancellationToken);
+        if (result.Failed.Any())
+            throw new IOException($"Failed to download {result.Failed.Count()} Fabric dependencies.");
     }
 
     private static ModifiedMinecraftEntry ParseModifiedMinecraft(FileInfo file, MinecraftEntry inheritedEntry,

@@ -10,6 +10,7 @@ using MinecraftLaunch.Utilities;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
+using System.Xml.Linq;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
@@ -78,14 +79,21 @@ public sealed class ForgeInstaller : InstallerBase {
     public Task PreloadAsync(CancellationToken cancellationToken = default) => DownloadForgePackageAsync(cancellationToken);
 
     public static async Task<IEnumerable<ForgeInstallEntry>> EnumerableForgeAsync(string mcVersion, bool isNeoforge = false, CancellationToken cancellationToken = default) {
+        var artifact = isNeoforge && mcVersion != "1.20.1" ? "neoforge" : "forge";
         var packagesUrl = isNeoforge
-            ? $"https://bmclapi2.bangbang93.com/neoforge/list/{mcVersion}"
-            : $"https://bmclapi2.bangbang93.com/forge/minecraft/{mcVersion}";
-
-        await using var json = await HttpUtil.Request(packagesUrl).GetStreamAsync(cancellationToken: cancellationToken);
-        IEnumerable<ForgeInstallEntry> entries = await JsonSerializer.DeserializeAsync(json,
-                ForgeInstallEntryContext.Default.IEnumerableForgeInstallEntry, cancellationToken)
-            ?? [];
+            ? $"https://maven.neoforged.net/releases/net/neoforged/{artifact}/maven-metadata.xml"
+            : "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml";
+        await using var xml = await HttpUtil.Request(packagesUrl).GetStreamAsync(cancellationToken: cancellationToken);
+        var document = await XDocument.LoadAsync(xml, LoadOptions.None, cancellationToken);
+        var versions = document.Root?.Element("versioning")?.Element("versions")?.Elements("version")
+            .Select(element => element.Value).Where(version => MatchesMinecraftVersion(version, mcVersion, isNeoforge))
+            .ToArray() ?? [];
+        IEnumerable<ForgeInstallEntry> entries = versions.Select((version, index) => new ForgeInstallEntry {
+            Build = index,
+            McVersion = mcVersion,
+            ForgeVersion = isNeoforge && mcVersion != "1.20.1" ? version : version[(mcVersion.Length + 1)..],
+            IsNeoforge = isNeoforge
+        });
 
         // NeoForge 列表接口不返回 build 字段（全部为 0），需按版本号语义排序才能让最新版排在最前。
         entries = isNeoforge
@@ -96,6 +104,14 @@ public sealed class ForgeInstaller : InstallerBase {
             entry.IsNeoforge = isNeoforge;
 
         return entries;
+
+        static bool MatchesMinecraftVersion(string version, string minecraftVersion, bool neoForge) {
+            if (!neoForge || minecraftVersion == "1.20.1")
+                return version.StartsWith(minecraftVersion + "-", StringComparison.Ordinal);
+            var expectedPrefix = minecraftVersion.StartsWith("1.", StringComparison.Ordinal)
+                ? minecraftVersion[2..] + "." : minecraftVersion + ".";
+            return version.StartsWith(expectedPrefix, StringComparison.Ordinal);
+        }
     }
 
     #region Privates
@@ -122,8 +138,9 @@ public sealed class ForgeInstaller : InstallerBase {
         string packageUrl;
         if (Entry.IsNeoforge) {
             string prefix = Entry.McVersion is "1.20.1" ? "forge" : "neoforge";
+            string packageVersion = Entry.McVersion is "1.20.1" ? $"{Entry.McVersion}-{Entry.ForgeVersion}" : Entry.ForgeVersion;
             packageUrl = $"https://maven.neoforged.net/releases/net/neoforged/{prefix}/"
-                + Entry.ForgeVersion + $"/{prefix}-{Entry.ForgeVersion}-installer.jar";
+                + packageVersion + $"/{prefix}-{packageVersion}-installer.jar";
         } else {
             List<string> identifiers = [Entry.McVersion, Entry.ForgeVersion];
             string loaderVersion = string.Join('-', identifiers);
@@ -252,9 +269,8 @@ public sealed class ForgeInstaller : InstallerBase {
 
         var groupDownloadResult = await new DefaultDownloader()
             .DownloadManyAsync(groupDownloadRequest, cancellationToken);
-
-        //if (groupDownloadResult.Failed.Count() > 0)
-        //    throw new InvalidOperationException("Some dependent files encountered errors during download");
+        if (groupDownloadResult.Failed.Any())
+            throw new IOException($"Failed to download {groupDownloadResult.Failed.Count()} Forge dependencies.");
     }
 
     private async Task RunInstallProcessorAsync(string packageFilePath, JsonElement installProfile, MinecraftEntry entry, CancellationToken cancellationToken) {

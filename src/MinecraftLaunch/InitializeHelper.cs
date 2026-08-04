@@ -10,8 +10,12 @@ public static class InitializeHelper {
 
         DownloadManager.MaxThread = componentSettings.MaxThread;
         DownloadManager.MaxFragment = componentSettings.MaxFragment;
-        DownloadManager.IsEnableMirror = componentSettings.IsEnableMirror;
+        DownloadManager.MinecraftMetadataSource = componentSettings.MinecraftMetadataSource;
+        DownloadManager.MinecraftFileSource = componentSettings.MinecraftFileSource;
+        DownloadManager.ModrinthSource = componentSettings.ModrinthSource;
+        DownloadManager.CurseForgeSource = componentSettings.CurseForgeSource;
         DownloadManager.IsEnableFragment = componentSettings.IsEnableFragment;
+        DownloadManager.MaxRetryCount = componentSettings.MaxRetryCount;
         DownloadManager.CurseforgeApiKey = componentSettings.CurseForgeApiKey;
 
         HttpUtil.Configure(componentSettings.DisableSystemProxy, componentSettings.ProxyServer, componentSettings.UserAgent);

@@ -66,7 +66,9 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
         try {
             var downloadRequests = ParseModFiles(cancellationToken);
 
-            await DownloadModsAsync(downloadRequests, cancellationToken);
+            var result = await DownloadModsAsync(downloadRequests, cancellationToken);
+            if (result.Failed.Any())
+                throw new IOException($"Failed to download {result.Failed.Count()} modpack files.");
             await ExtractModpackAsync(cancellationToken);
         } catch (Exception ex) {
             ReportCompleted(false, ex);

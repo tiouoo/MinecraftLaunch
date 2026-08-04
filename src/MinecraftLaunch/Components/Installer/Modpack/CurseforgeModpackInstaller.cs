@@ -199,7 +199,9 @@ public sealed class CurseforgeModpackInstaller : InstallerBase {
         ReportProgress(InstallStep.DownloadMods, 0.6d, TaskStatus.Running,
             urls.Count, 0, 0, false);
 
-        await new DefaultDownloader().DownloadManyAsync(groupRequest, cancellationToken);
+        var result = await new DefaultDownloader().DownloadManyAsync(groupRequest, cancellationToken);
+        if (result.Failed.Any())
+            throw new IOException($"Failed to download {result.Failed.Count()} modpack files.");
     }
 
     private async Task ExtractModpackAsync(CancellationToken cancellationToken) {

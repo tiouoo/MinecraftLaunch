@@ -39,6 +39,8 @@ public sealed class OptifineInstaller : InstallerBase {
     }
 
     public static async Task<IEnumerable<OptifineInstallEntry>> EnumerableOptifineAsync(string mcVersion, CancellationToken cancellationToken = default) {
+        if (DownloadManager.MinecraftFileSource == DownloadSourceMode.OfficialOnly)
+            return [];
         string url = $"https://bmclapi2.bangbang93.com/optifine/{mcVersion}";
 
         await using var json = await HttpUtil.Request(url).GetStreamAsync(cancellationToken: cancellationToken);
@@ -113,6 +115,8 @@ public sealed class OptifineInstaller : InstallerBase {
 
     private async Task<FileInfo> DownloadOptifinePackageAsync(CancellationToken cancellationToken) {
         cancellationToken.ThrowIfCancellationRequested();
+        if (DownloadManager.MinecraftFileSource == DownloadSourceMode.OfficialOnly)
+            throw new InvalidOperationException("OptiFine does not provide an official automated download source.");
         ReportProgress(InstallStep.DownloadPackage, 0.2d, TaskStatus.Running, 1, 0);
 
         string packageUrl = $"https://bmclapi2.bangbang93.com/optifine/{Entry.McVersion}/{Entry.Type}/{Entry.Patch}";
