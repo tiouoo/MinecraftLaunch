@@ -47,6 +47,10 @@ public sealed class MinecraftProcess : IDisposable {
             EnableRaisingEvents = true,
         };
 
+        foreach (var (key, value) in launchConfig.EnvironmentVariables ?? []) {
+            Process.StartInfo.EnvironmentVariables[key] = value;
+        }
+
         Process.Exited += OnMinecraftProcessExited;
         Process.ErrorDataReceived += OnOutputDataReceived;
         Process.OutputDataReceived += OnOutputDataReceived;

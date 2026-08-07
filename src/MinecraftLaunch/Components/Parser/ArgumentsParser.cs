@@ -247,6 +247,8 @@ public sealed class ArgumentsParser
             yield return $"--height {LaunchConfig.Height}";
         }
 
+        foreach (var arg in LaunchConfig.GameArguments) yield return arg;
+
         bool isHighVersion = MinecraftEntry.ReleaseTime > new DateTime(2023, 4, 4);
         if (!string.IsNullOrWhiteSpace(LaunchConfig.SaveName) && isHighVersion)
             yield return $"--quickPlaySingleplayer {LaunchConfig.SaveName.ToPath()}";

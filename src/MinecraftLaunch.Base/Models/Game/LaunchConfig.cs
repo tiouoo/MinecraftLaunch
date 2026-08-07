@@ -21,6 +21,10 @@ public record LaunchConfig {
     public string SaveName { get; set; }
 
     public IEnumerable<string> JvmArguments { get; set; } = [];
+
+    public IEnumerable<string> GameArguments { get; set; } = [];
+
+    public Dictionary<string, string> EnvironmentVariables { get; set; } = [];
     
     public string WrapperCommand { get; set; }
 }
