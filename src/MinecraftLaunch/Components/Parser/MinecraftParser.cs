@@ -66,6 +66,10 @@ public sealed class MinecraftParser {
             } catch (FileNotFoundException) {
                 // Incomplete version folders do not represent launchable instances.
                 continue;
+            } catch (InvalidOperationException) {
+                // A modified instance whose inherited parent no longer exists or is not a
+                // vanilla entry cannot be resolved; skip it instead of failing the whole scan.
+                continue;
             }
             int index = list.FindIndex(i => i.Id == entry.Id);
             if (index != -1)
@@ -74,7 +78,8 @@ public sealed class MinecraftParser {
             }
 
             list.Add(entry);
-            if (entry is ModifiedMinecraftEntry m && m.HasInheritance && !inheritedInstanceAlreadyFound)
+            if (entry is ModifiedMinecraftEntry m && m.HasInheritance && !inheritedInstanceAlreadyFound
+                && list.All(i => i.Id != m.InheritedMinecraft.Id))
                 list.Add(m.InheritedMinecraft);
         }
 
