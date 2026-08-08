@@ -102,7 +102,7 @@ public abstract class MinecraftEntry {
 
         // Parse GameAsset objects
         foreach (var item in assets.EnumerateObject()) {
-            var size = item.Value.GetProperty("size"u8).GetInt32();
+            var size = GetSizeInt32(item.Value.GetProperty("size"u8));
             var hash = item.Value.GetProperty("hash"u8).Deserialize(Sha1Data.Sha1DataSerializerContext.Default.Sha1Data);
 
             yield return new MinecraftAsset {
@@ -112,6 +112,16 @@ public abstract class MinecraftEntry {
                 Size = size
             };
         }
+    }
+
+    private static int GetSizeInt32(JsonElement element) {
+        if (element.ValueKind == JsonValueKind.Number &&
+            element.TryGetInt32(out int size)) return size;
+
+        if (element.ValueKind == JsonValueKind.String &&
+            int.TryParse(element.GetString(), out var parsed)) return parsed;
+
+        return 0;
     }
     
     public (IEnumerable<MinecraftLibrary> Libraries, IEnumerable<MinecraftLibrary> NativeLibraries) GetRequiredLibraries() {
@@ -654,7 +664,9 @@ public sealed class QuiltLibrary(string mavenName) : MinecraftLibrary(mavenName)
 }
 
 public sealed class DownloadableDependency(string mavenName, string url) : MinecraftLibrary(mavenName), IDownloadDependency {
-    long? IDownloadDependency.Size => throw new NotSupportedException();
+    public long? Size { get; init; }
+
+    long? IDownloadDependency.Size => Size;
 
     public string Url { get; init; } = url;
 }

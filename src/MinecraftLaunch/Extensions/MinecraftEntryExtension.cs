@@ -8,6 +8,15 @@ using MinecraftLaunch.Base.Models.SHA1;
 namespace MinecraftLaunch.Extensions;
 
 public static class MinecraftEntryExtension {
+    private static long GetSizeInt64(JsonElement element) {
+        if (element.ValueKind == JsonValueKind.Number &&
+            element.TryGetInt64(out long size)) return size;
+
+        if (element.ValueKind == JsonValueKind.String &&
+            long.TryParse(element.GetString(), out var parsed)) return parsed;
+
+        return 0;
+    }
     public static JavaEntry GetAppropriateJava(this MinecraftEntry minecraft, IEnumerable<JavaEntry> javas) {
         var targetJavaVersion = minecraft.GetAppropriateJavaVersion();
 
@@ -55,7 +64,7 @@ public static class MinecraftEntryExtension {
         if (clientJarPath is null)
             return null;
 
-        long size = clientArtifactNode.GetProperty("size"u8).GetInt64();
+        long size = GetSizeInt64(clientArtifactNode.GetProperty("size"u8));
         string url = clientArtifactNode.GetProperty("url"u8).GetString();
         var sha1 = clientArtifactNode.GetPropertyNullable("sha1"u8)?.Deserialize(Sha1Data.Sha1DataSerializerContext.Default.Sha1Data);
 
@@ -86,7 +95,7 @@ public static class MinecraftEntryExtension {
         if(!root.TryGetProperty("assetIndex"u8, out var assetIndex))throw new InvalidDataException("Error in parsing version.json");
         
 
-        long size = assetIndex.GetProperty("size"u8).GetInt64();
+        long size = GetSizeInt64(assetIndex.GetProperty("size"u8));
         string id = assetIndex.GetProperty("id"u8).GetString() ?? throw new InvalidDataException();
         string url = assetIndex.GetProperty("url"u8).GetString() ?? throw new InvalidDataException();
         var sha1 = assetIndex.GetPropertyNullable("sha1"u8)?.Deserialize(Sha1Data.Sha1DataSerializerContext.Default.Sha1Data) ?? throw new InvalidDataException();
