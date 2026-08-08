@@ -26,7 +26,7 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
             ?? throw new InvalidOperationException("Failed to parse modrinth.index.json");
     }
 
-    public static async Task<IInstallEntry> ParseModLoaderEntryAsync(ModrinthModpackInstallEntry modpack, CancellationToken cancellationToken = default) {
+    public static async Task<IInstallEntry?> ParseModLoaderEntryAsync(ModrinthModpackInstallEntry modpack, CancellationToken cancellationToken = default) {
         if (modpack.Dependencies.TryGetValue("fabric-loader", out var modpackDependency1))
             return (await FabricInstaller.EnumerableFabricAsync(modpack.McVersion, cancellationToken: cancellationToken))
                 .First(x => x.BuildVersion.Equals(modpackDependency1));
@@ -40,7 +40,7 @@ public sealed class ModrinthModpackInstaller : InstallerBase {
             return (await ForgeInstaller.EnumerableForgeAsync(modpack.McVersion, true, cancellationToken))
                 .First(x => x.ForgeVersion.Equals(dependency));
         else
-            throw new NotSupportedException();
+            return null;
     }
 
     public static ModrinthModpackInstaller Create(string mcFolder, string modpackPath, ModrinthModpackInstallEntry installEntry, MinecraftEntry entry) {
