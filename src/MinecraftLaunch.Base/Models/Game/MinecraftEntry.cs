@@ -506,8 +506,10 @@ public abstract partial class MinecraftLibrary : MinecraftDependency {
 
         #endregion
 
-        return new UnknownLibrary(libNode.MavenName) {
-            IsNativeLibrary = false,
+        return new VanillaLibrary(libNode.MavenName) {
+            IsNativeLibrary = libNode.NativeClassifierNames is not null,
+            Size = null,
+            Sha1 = null,
             MinecraftFolderPath = minecraftFolderPath
         };
     }
