@@ -21,6 +21,8 @@ public sealed class MinecraftResourceDownloader {
     internal int TotalCount { get; set; }
     public bool AllowVerifyAssets { get; init; } = true;
     public bool AllowInheritedDependencies { get; init; } = true;
+    
+    public IEnumerable<string> SourceRootDirectories { get; set; } = [];
 
     public MinecraftResourceDownloader(MinecraftEntry entry, IEnumerable<MinecraftDependency> extraDependencies = null) {
         if (extraDependencies is not null)
@@ -91,9 +93,19 @@ public sealed class MinecraftResourceDownloader {
             }
         });
 
-        // 3. 下载无效的依赖项
-        TotalCount = invalidDeps.Count;
-        var downloadItems = invalidDeps
+        ConcurrentBag<MinecraftDependency> dependenciesToDownload = [];
+        Parallel.ForEach(invalidDeps, new ParallelOptions
+        {
+            MaxDegreeOfParallelism = fileVerificationParallelism,
+            CancellationToken = cancellationToken
+        }, dep => {
+            if (dep is IDownloadDependency && TryCopyDependencyFromSources(dep, cancellationToken))
+                return;
+            dependenciesToDownload.Add(dep);
+        });
+
+        TotalCount = dependenciesToDownload.Count;
+        var downloadItems = dependenciesToDownload
             .OfType<IDownloadDependency>()
             .Select(dep => new DownloadRequest(dep.Url, dep.FullPath, dep.Size ?? 0))
             .ToList();
@@ -118,25 +130,50 @@ public sealed class MinecraftResourceDownloader {
         if (dep is not IVerifiableDependency verifiableDependency)
             return true;
 
-        bool VerifySha1() {
-            using var fileStream = File.OpenRead(dep.FullPath);
+        return VerifyFileContent(dep.FullPath, verifiableDependency);
+    }
+    
+    private bool TryCopyDependencyFromSources(MinecraftDependency dependency, CancellationToken cancellationToken = default) {
+        if (dependency is not IVerifiableDependency verifiableDependency)
+            return false;
+
+        foreach (var sourceRoot in SourceRootDirectories) {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(sourceRoot))
+                continue;
+
+            var candidate = Path.Combine(sourceRoot, dependency.FilePath);
+            if (!File.Exists(candidate))
+                continue;
+
+            if (!VerifyFileContent(candidate, verifiableDependency))
+                continue;
+
+            var target = dependency.FullPath;
+            try {
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(candidate, target, true);
+                return true;
+            } catch (Exception exception) {
+                Debug.WriteLine($"从本地资源目录复制文件失败：{candidate} -> {target}{Environment.NewLine}{exception}");
+            }
+        }
+        return false;
+    }
+
+    private static bool VerifyFileContent(string filePath, IVerifiableDependency verifiableDependency) {
+        if (verifiableDependency.Sha1 is { } sha1) {
+            using var fileStream = File.OpenRead(filePath);
             var sha1Bytes = (Span<byte>)stackalloc byte[20];
             SHA1.HashData(fileStream, sha1Bytes);
-            var sp = verifiableDependency.Sha1.Value;
-            return sha1Bytes.SequenceEqual(sp);
+            return sha1Bytes.SequenceEqual(sha1);
         }
 
-        bool VerifySize() {
-            var file = new FileInfo(dep.FullPath);
-            return verifiableDependency.Size == file.Length;
-        }
+        if (verifiableDependency.Size is long size)
+            return new FileInfo(filePath).Length == size;
 
-        if (verifiableDependency.Sha1 != null)
-            return VerifySha1();
-        else if (verifiableDependency.Size != null)
-            return VerifySize();
-
-        return true;
+        return false;
     }
 
     #endregion
