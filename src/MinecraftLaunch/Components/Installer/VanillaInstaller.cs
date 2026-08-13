@@ -108,10 +108,16 @@ public sealed class VanillaInstaller : InstallerBase {
         cancellationToken.ThrowIfCancellationRequested();
 
         ReportProgress(InstallStep.DownloadLibraries, 0.5d, TaskStatus.Running, 0, 0);
-        var resourceDownloader = new MinecraftResourceDownloader(entry);
+        var resourceDownloader = new MinecraftResourceDownloader(entry) {
+            SourceRootDirectories = SourceRootDirectories
+        };
+
+        resourceDownloader.CopyProgressChanged += (_, x)
+            => ReportProgress(InstallStep.CopyLibraries, x.Percentage.ToPercentage(0.5d, 0.75d),
+                TaskStatus.Running, x.TotalCount, x.CompletedCount);
 
         resourceDownloader.ProgressChanged += (_, x)
-            => ReportProgress(InstallStep.DownloadLibraries, x.Percentage.ToPercentage(0.5d, 0.95d),
+            => ReportProgress(InstallStep.DownloadLibraries, x.Percentage.ToPercentage(0.75d, 0.95d),
                 TaskStatus.Running, x.TotalCount, x.CompletedCount, x.Speed, true);
 
         var result = await resourceDownloader.VerifyAndDownloadDependenciesAsync(cancellationToken: cancellationToken);

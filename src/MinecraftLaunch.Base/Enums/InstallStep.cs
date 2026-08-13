@@ -9,6 +9,9 @@ public enum InstallStep {
     DownloadAssetIndexFile,
     RanToCompletion,
 
+    //Copy local resources
+    CopyLibraries,
+
     //Forge Optifine
     DownloadPackage,
     ParsePackage,

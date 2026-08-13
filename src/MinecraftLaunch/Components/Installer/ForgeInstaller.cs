@@ -7,6 +7,7 @@ using MinecraftLaunch.Components.Downloader;
 using MinecraftLaunch.Components.Parser;
 using MinecraftLaunch.Extensions;
 using MinecraftLaunch.Utilities;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
@@ -260,11 +261,30 @@ public sealed class ForgeInstaller : InstallerBase {
                     dependencies.Add(item);
         }
 
-        var groupDownloadRequest = new GroupDownloadRequest(dependencies.OfType<IDownloadDependency>()
+        // 优先从本地资源目录复制，仅复制失败的进入下载清单。
+        var dependenciesToDownload = new ConcurrentBag<MinecraftLibrary>();
+        var totalCopyCandidates = dependencies.Count(dependency => dependency is IDownloadDependency);
+        var copiedCount = 0;
+        Parallel.ForEach(dependencies, new ParallelOptions {
+            MaxDegreeOfParallelism = 4,
+            CancellationToken = cancellationToken
+        }, dependency => {
+            if (dependency is IDownloadDependency
+                && MinecraftResourceDownloader.TryCopyDependencyFromSources(dependency, SourceRootDirectories, cancellationToken)) {
+                var finished = Interlocked.Increment(ref copiedCount);
+                ReportProgress(InstallStep.CopyLibraries, (finished / (double)Math.Max(1, totalCopyCandidates))
+                        .ToPercentage(0.50d, 0.60d),
+                    TaskStatus.Running, totalCopyCandidates, finished);
+                return;
+            }
+            dependenciesToDownload.Add(dependency);
+        });
+
+        var groupDownloadRequest = new GroupDownloadRequest(dependenciesToDownload.OfType<IDownloadDependency>()
             .Select(x => new DownloadRequest(DownloadManager.BmclApi.TryFindUrl(x.Url), x.FullPath)));
 
         groupDownloadRequest.ProgressChanged = args
-            => ReportProgress(InstallStep.DownloadLibraries, args.Percentage.ToPercentage(0.50d, 0.70d), 
+            => ReportProgress(InstallStep.DownloadLibraries, args.Percentage.ToPercentage(0.60d, 0.70d), 
                     TaskStatus.Running, args.TotalCount, args.CompletedCount, args.Speed, true);
 
         var groupDownloadResult = await new DefaultDownloader()

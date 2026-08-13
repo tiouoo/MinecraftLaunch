@@ -8,6 +8,11 @@ namespace MinecraftLaunch.Components.Installer;
 public abstract class InstallerBase : IInstaller {
     public abstract string MinecraftFolder { get; init; }
 
+    /// <summary>
+    /// 可复用的本地资源根目录（.minecraft 或 meta 目录）。安装时优先从这些目录复制资源，避免重复下载。
+    /// </summary>
+    public IEnumerable<string> SourceRootDirectories { get; set; } = [];
+
     public event EventHandler<InstallComplatedEventArgs> Completed;
     public event EventHandler<InstallProgressChangedEventArgs> ProgressChanged;
 
