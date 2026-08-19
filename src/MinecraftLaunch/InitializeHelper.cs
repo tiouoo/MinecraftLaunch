@@ -12,8 +12,6 @@ public static class InitializeHelper {
         DownloadManager.MaxFragment = componentSettings.MaxFragment;
         DownloadManager.MinecraftMetadataSource = componentSettings.MinecraftMetadataSource;
         DownloadManager.MinecraftFileSource = componentSettings.MinecraftFileSource;
-        DownloadManager.ModrinthSource = componentSettings.ModrinthSource;
-        DownloadManager.CurseForgeSource = componentSettings.CurseForgeSource;
         DownloadManager.IsEnableFragment = componentSettings.IsEnableFragment;
         DownloadManager.MaxRetryCount = componentSettings.MaxRetryCount;
         DownloadManager.CurseforgeApiKey = componentSettings.CurseForgeApiKey;

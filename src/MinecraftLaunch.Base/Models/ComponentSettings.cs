@@ -5,8 +5,6 @@ namespace MinecraftLaunch.Base.Models;
 public record ComponentSettings {
     public DownloadSourceMode MinecraftMetadataSource { get; set; } = DownloadSourceMode.Auto;
     public DownloadSourceMode MinecraftFileSource { get; set; } = DownloadSourceMode.Auto;
-    public DownloadSourceMode ModrinthSource { get; set; } = DownloadSourceMode.Auto;
-    public DownloadSourceMode CurseForgeSource { get; set; } = DownloadSourceMode.Auto;
     public bool IsEnableFragment { get; set; } = true;
 
     public int MaxThread { get; set; } = 64;

@@ -20,8 +20,6 @@ public static class DownloadManager {
 
     public static DownloadSourceMode MinecraftMetadataSource { get; set; } = DownloadSourceMode.Auto;
     public static DownloadSourceMode MinecraftFileSource { get; set; } = DownloadSourceMode.Auto;
-    public static DownloadSourceMode ModrinthSource { get; set; } = DownloadSourceMode.Auto;
-    public static DownloadSourceMode CurseForgeSource { get; set; } = DownloadSourceMode.Auto;
 
     public static readonly IDownloadMirror BmclApi = new BmclApiSource();
 
@@ -90,12 +88,8 @@ public static class DownloadManager {
         if (type == DownloadResourceType.MinecraftFile) return true;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
         return type switch {
-            DownloadResourceType.Modrinth => uri.Host.Equals("cdn.modrinth.com", StringComparison.OrdinalIgnoreCase) ||
-                                             uri.Host.Equals("mod.mcimirror.top", StringComparison.OrdinalIgnoreCase) &&
-                                             !uri.AbsolutePath.StartsWith("/modrinth/", StringComparison.OrdinalIgnoreCase),
-            DownloadResourceType.CurseForge => !uri.Host.Equals("api.curseforge.com", StringComparison.OrdinalIgnoreCase) &&
-                                               !(uri.Host.Equals("mod.mcimirror.top", StringComparison.OrdinalIgnoreCase) &&
-                                                 uri.AbsolutePath.StartsWith("/curseforge/", StringComparison.OrdinalIgnoreCase)),
+            DownloadResourceType.Modrinth => uri.Host.Equals("cdn.modrinth.com", StringComparison.OrdinalIgnoreCase),
+            DownloadResourceType.CurseForge => !uri.Host.Equals("api.curseforge.com", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }
@@ -115,8 +109,6 @@ public static class DownloadManager {
     private static DownloadSourceMode GetMode(DownloadResourceType type) => type switch {
         DownloadResourceType.MinecraftMetadata => MinecraftMetadataSource,
         DownloadResourceType.MinecraftFile => MinecraftFileSource,
-        DownloadResourceType.Modrinth => ModrinthSource,
-        DownloadResourceType.CurseForge => CurseForgeSource,
         _ => DownloadSourceMode.OfficialOnly
     };
 
@@ -142,11 +134,7 @@ public static class DownloadManager {
         var host = source.Host.ToLowerInvariant();
         string baseUrl = null;
         string path = source.AbsolutePath;
-        if (type == DownloadResourceType.Modrinth) {
-            baseUrl = host == "api.modrinth.com" ? "https://mod.mcimirror.top/modrinth" : "https://mod.mcimirror.top";
-        } else if (type == DownloadResourceType.CurseForge) {
-            baseUrl = host == "api.curseforge.com" ? "https://mod.mcimirror.top/curseforge" : "https://mod.mcimirror.top";
-        } else if (type is DownloadResourceType.MinecraftMetadata or DownloadResourceType.MinecraftFile) {
+        if (type is DownloadResourceType.MinecraftMetadata or DownloadResourceType.MinecraftFile) {
             baseUrl = host switch {
                 "resources.download.minecraft.net" => "https://bmclapi2.bangbang93.com/assets",
                 "libraries.minecraft.net" or "maven.minecraftforge.net" or "maven.fabricmc.net" => "https://bmclapi2.bangbang93.com/maven",
